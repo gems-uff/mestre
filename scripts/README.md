@@ -24,4 +24,13 @@ This script uses the program [classifyConcatenation.jar](classifyConcatenation.j
 
 ---
 
+## clone_projects.py
+
+Clones the projects contained in the [dataset](../data/INITIAL_DATASET.csv).
+
+--- 
+
+## configs.py
+
+Stores configs such as repos folder path and dataset path.
 
