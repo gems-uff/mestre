@@ -10,7 +10,7 @@ def clone_projects():
     if(not os.path.exists(configs.REPOS_PATH)):
         os.mkdir(configs.REPOS_PATH)
     current_index = 0
-    df = pd.read_csv(configs.INITIAL_DATASET_PATH_TEST, header=0)
+    df = pd.read_csv(configs.INITIAL_DATASET_PATH, header=0)
     print('Starting the clone process...')
     for index, row in df.iterrows():
         current_index +=1
