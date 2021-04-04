@@ -33,7 +33,7 @@ def main():
     conn, cur = database.connect()
     dat = pd.read_sql_query(query, conn)
     print(dat.head())
-
     dat.to_csv('../data/INITIAL_DATASET.csv', index=None)
+    database.close(conn,cur)
 
 main()

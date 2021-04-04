@@ -10,6 +10,12 @@ Provides access to the conflicts database.
 
 ---
 
+## extract_initial_dataset.py
+
+Extracts the [file](../data/INITIAL_DATASET.csv) from the conflicts database. 
+
+---
+
 ## concatenation_relabel.py
 
 Takes as input a csv [file](../data/INITIAL_DATASET.csv) containing conflicting merge scenarios. It is processed to relabel all scenarios resolved with the *Concatenation* strategy into *ConcatenationV1V2* or *ConcatenationV2V1*. The result is stored into a new csv [file](../data/LABELLED_DATASET.csv).
