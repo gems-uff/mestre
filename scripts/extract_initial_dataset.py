@@ -9,7 +9,7 @@ query = """select
             replace(p.htmlurl, 'https://github.com/', '') as project,  
             split_part(replace(p.htmlurl, 'https://github.com/', ''), '/', 1) as project_user, 
             split_part(replace(p.htmlurl, 'https://github.com/', ''), '/', 2) as project_name,
-            concat(split_part(replace(p.htmlurl, 'https://github.com/', ''), '/', 1), '/' , substring(replace(cf.path, '/home/gleiph/Desktop/analysis/rep', ''),3, char_length(replace(cf.path, '/home/gleiph/Desktop/analysis/rep', '')))) AS path,
+            concat(split_part(replace(p.htmlurl, 'https://github.com/', ''), '/', 1), '/' , regexp_replace(cf.path, '(\/home\/gleiph\/Desktop\/analysis\/rep(\d+)\/)', '')) as path,
             cf.name as file_name,
             r.sha,
             r.leftsha,
