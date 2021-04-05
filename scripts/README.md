@@ -28,6 +28,12 @@ This script uses the program [classifyConcatenation.jar](classifyConcatenation.j
 
 Clones the projects contained in the [dataset](../data/INITIAL_DATASET.csv).
 
+---
+
+## execute_mac_tool.py
+
+Executes the [macTool](https://github.com/catarinacosta/macTool) to extract some merge attributes from the repositories. Output files are put into [../data/macTool_output](../data/macTool_output).
+
 --- 
 
 ## configs.py

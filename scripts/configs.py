@@ -1,3 +1,5 @@
 INITIAL_DATASET_PATH = '../data/INITIAL_DATASET.csv'
 INITIAL_DATASET_PATH_TEST = '../data/INITIAL_DATASET_test.csv'
 REPOS_PATH = '../repos'
+MAC_TOOL_PATH = 'macTool.jar'
+MAC_TOOL_OUTPUT = '../data/macTool_output'
