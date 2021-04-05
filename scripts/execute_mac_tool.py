@@ -28,8 +28,6 @@ def main():
     repos_path = set()
     for index, row in df.iterrows():
         repos_path.add(f"{configs.REPOS_PATH}/{row['project']}")
-        if(index > 1000):
-            break
     mac_tool_command = f'java -jar {configs.MAC_TOOL_PATH}'
 
     current_index = 0
