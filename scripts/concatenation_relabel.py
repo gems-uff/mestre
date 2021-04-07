@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import subprocess
 import time
+import configs
 
 def execute_command(command):
     output = ''
@@ -68,7 +69,7 @@ def write_list_to_file(content, file_name):
 
 
 def main():
-    df = pd.read_csv('../data/INITIAL_DATASET.csv', header=0)
+    df = pd.read_csv(configs.INITIAL_DATASET_PATH, header=0)
     new_rows = []
     count = 0
     print('Analyzing...')
@@ -101,7 +102,7 @@ def main():
             write_list_to_file(solution, 'solution')
             concatenation_type = execute_command('java -jar classifyConcatenation.jar v1 v2 context1 context2 solution')
             #print(f"{chunk_id}: {concatenation_type}")
-            row['developerdecision'] = concatenation_type
+            row['developerdecision'] = concatenation_type.strip()
             os.remove("v1")
             os.remove("v2")
             os.remove("context1")
@@ -111,6 +112,6 @@ def main():
         new_rows.append(row)
         
     new_df = pd.DataFrame(new_rows, columns=df.columns)
-    new_df.to_csv('../data/LABELLED_DATASET.csv', index=None)
+    new_df.to_csv(configs.LABELLED_DATASET_PATH, index=None)
 
 main()
