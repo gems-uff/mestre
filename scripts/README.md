@@ -32,7 +32,7 @@ Clones the projects contained in the [dataset](../data/INITIAL_DATASET.csv).
 
 ## execute_mac_tool.py
 
-Executes the [macTool](https://github.com/catarinacosta/macTool) to extract some merge attributes from the repositories. Output files are put into [../data/macTool_output](../data/macTool_output).
+Executes the a [modified version](https://github.com/helenocampos/macTool) of the[macTool](https://github.com/catarinacosta/macTool) to extract some merge attributes from the repositories. Output files are put into [../data/macTool_output](../data/macTool_output).
 
 --- 
 
