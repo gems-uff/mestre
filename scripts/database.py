@@ -37,6 +37,21 @@ def get_conflict(chunk_id):
         close(conn, cur)
         return conflict
 
+def get_conflict_position(chunk_id):
+    conn, cur = connect()
+    beginline = 0
+    endline = 0
+    try:
+        query = f"select beginline, endline from conflictingchunk where id = {chunk_id}"
+        cur.execute(query)
+        for row in cur.fetchall():
+            beginline, endline = row
+        cur.close()
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+    finally:
+        close(conn, cur)
+        return beginline, endline
 
 def get_solution(chunk_id):
     conn, cur = connect()
