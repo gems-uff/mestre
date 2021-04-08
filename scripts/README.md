@@ -48,8 +48,6 @@ Collected data are put into a [csv file](../data/collected_attributes1.csv).
 
 Script for collecting the following attributes: cyclomatic complexity (left and right versions of the conflicting chunk and for the whole conflicted file); chunk size (absolute and relative to the file size); chunk position in the file.
 
-This script uses the Github API to collect the data. Since this API has limited usage, developer keys are needed to provide access to the data. Such keys should be put into a file named github_keys, one per line. If the rate limit is reached, the script will try to use another key.
-
 Collected data are put into a [csv file](../data/collected_attributes2.csv).
 
 ---
