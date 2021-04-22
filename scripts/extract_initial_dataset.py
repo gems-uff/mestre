@@ -4,6 +4,9 @@ import pandas as pd
 query = """select 
             cc.id as chunk_id,
             cc.developerdecision,
+            cc.beginline as line_start,
+            cc.endline as line_end,
+            cc.separatorline as line_separator,
             cc.general_kind_conflict_outmost as kind_conflict,
             p.htmlurl as url,
             replace(p.htmlurl, 'https://github.com/', '') as project,  
