@@ -1,3 +1,7 @@
+## download_dataset_files.py
+
+Downloads the dataset from an external source and puts it into a folder named data in the repository root.
+
 ## classifyConcatenation.jar
 
 This program relabels a conflict scenario which was labelled as *Concatenation* in the database into *ConcatenationV1V2* or *ConcatenationV2V1*. It uses the following information: V1, V2, context, and resolution content. For more information, check the project [folder](ClassifyConcatenationType). 
