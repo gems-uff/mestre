@@ -3,6 +3,7 @@
 # tool to see who introduced changes on files
 # Copyright Edmundo Carmona Antoranz 2017
 # Released under the terms of GPLv2
+# Credits to https://github.com/eantoranz/difflame
 
 import subprocess
 import sys

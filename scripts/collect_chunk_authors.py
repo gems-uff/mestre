@@ -58,19 +58,20 @@ def get_chunks_author(file_path, line_start, line_end, line_separator, merge_bas
     # print(f'blame left:  \n {blame_output_left}')
     authors_left = extract_authors(blame_output_left)
     if len(authors_left) == 0:
-        authors_left = find_deleted_lines_authors(merge_base, line_start, line_separator, file_path)
-    print(f'authors_left: {authors_left}')
-    print('------------------')
+        authors_left = get_empty_chunk_authors(merge_base, line_start, line_separator, file_path)
+    # print(f'authors_left: {authors_left}')
+    # print('------------------')
     blame_output_right = blame(file_path, line_separator+1, line_end)
     # print(f'blame right: \n {blame_output_right}')
     authors_right = extract_authors(blame_output_right)
     if len(authors_right) == 0:
-        authors_right = find_deleted_lines_authors(merge_base, line_separator+1, line_end, file_path)
-    print(f'authors_right: {authors_right}')
+        authors_right = get_empty_chunk_authors(merge_base, line_separator+1, line_end, file_path)
+    # print(f'authors_right: {authors_right}')
+    return authors_left, authors_right
         
 
 def extract_authors(blame_output):
-    authors = set()
+    authors = {}
     lines = blame_output.split('\n')
     insideChunk = False
     # print('------------------------ AAA')
@@ -83,11 +84,14 @@ def extract_authors(blame_output):
                 line_parts = line.strip().split('(')[1].split()
                 # print(line_parts)
                 author = line_parts[0].replace('<','').replace('>','').replace('(','')
-                authors.add(author)
+                if author in authors:
+                    authors[author]['modified']+=1
+                else:
+                    authors[author]={'modified': 1, 'deleted': 0, 'moved/renamed':False}
     return authors
 
 
-# how we find who deleted a line:
+# how we find who participated in an empty side of a chunk:
 # use difflame tool (https://github.com/eantoranz/difflame)
 #   ./difflame.py {merge_base_sha} -e -- {file_path}
 # example:
@@ -96,12 +100,17 @@ def extract_authors(blame_output):
 #     12ef92bf (<kenny@the-b.org>       2008-11-14 10:07:29  29  20) import java.util.List;
 # last commit where the line was modified | email of the author | timestamp of the commit | line number in the merge base | line number in the conflictingfile
 # example of a deleted line and information about the commit that deleted it:
-# -0f293ab7 (<rhansby@gmail.com>     2015-09-22 14:41:37  26    ) import android.support.v7.widget.LinearLayoutManager;
-# retrieve all lines between the lines for the chunk in the current version
+    # -0f293ab7 (<rhansby@gmail.com>     2015-09-22 14:41:37  26    ) import android.support.v7.widget.LinearLayoutManager;
+# example of an added line:
+#   +f7beb3b8 (<kenny@the-b.org>       2013-04-12 04:13:42    51) import android.widget.SeekBar;
+# retrieve all lines between the lines for the empty chunk in the current version
 # if any deleted lines are present, collect the authors names and how many lines they deleted.
+# if the chunk is empty in the merge and an added line is shown in blame, it means the file was renamed or moved.
+#   in this case, we collect the authors who authored such lines.
 # regex for matching the line information from difflame:
 #   (-|\+|\s)?\S{8} \(<(.*?)>\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\s+(\d+)?\s+(\d+)?
-def find_deleted_lines_authors(merge_base_sha, line_start, line_end, file_path):
+# returns authors who participated in the empty chunk
+def get_empty_chunk_authors(merge_base_sha, line_start, line_end, file_path):
     command = f"./{starting_folder}/difflame.py {merge_base_sha} -e -- {file_path}"
     output = execute_command(command).split('\n')
     pattern = re.compile(r"(-|\+|\s)?\S{8} \(<(.*?)>\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\s+(\d+)?\s+(\d+)?\)")
@@ -113,42 +122,30 @@ def find_deleted_lines_authors(merge_base_sha, line_start, line_end, file_path):
         if x is not None:
             line_type = x.group(1)
             author = x.group(2)
-            # original_line = x.group(3)
+            original_line = x.group(3)
             merge_line = x.group(4)
-            # print(f"line type: {line_type}  author: {author} original line: {original_line} merge_line: {merge_line}  line_end: {line_end}")
+            # print(f"line type: {line_type}  author: {author} original line: {original_line} merge_line: {merge_line}  line_end: {line_end}  line_start: {line_start}")
             # print(line)
             if merge_line is not None and int(merge_line) > int(line_end):
                 break
-            if merge_line is not None and int(merge_line) <= int(line_start):
+            if merge_line is not None and int(merge_line) >= int(line_start):
                 start = True
             if start:
                 if line_type == '-' and merge_line is None:
                     if author in authors:
-                        authors[author]+=1
+                        authors[author]['deleted']+=1
                     else:
-                        authors[author]=1
+                        authors[author]={'modified': 0, 'deleted': 1, 'moved/renamed':False}
+                if line_type == '+' and original_line is None:
+                    if not author in authors:
+                        authors[author]={'modified': 0, 'deleted': 0, 'moved/renamed':True}
 
     return authors
-
-# NOT USED \/
-# use git blame using the chunk information (line_start, line_end, HEAD) and the merge base commit 
-#   git blame -L line_start,line_end --show-email --reverse commit_base..HEAD file_path
-# as a result, each line of the output will display whats the last commit (last_commit) where such line appeared
-# example: 
-    # d2164043d (<rhansby@gmail.com> 2015-09-21 12:04:45 -0700  20) import android.content.res.TypedArray;
-    # in this case, last_commit is d2164043d
-# for each blame output line, find what is the next commit after last_commit where the line appeared. i.e. the commit where the line as deleted
-    # git log --reverse --ancestry-path last_commit..HEAD
-    # get the commit author
-# assumption: the chunk delimitation (line_start, line_end) is valid for the current replayed merge. However,
-# such line numbers might be different in the previous version. 
-# We assume that such delimitation entails at least one line which was deleted
-        
 
 def execute_command(command):
     try:
         my_env = os.environ.copy()
-        print(command)
+        # print(command)
         result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env)
         # print(result)
         return result
@@ -160,16 +157,13 @@ def execute_command(command):
 def main():
     df = pd.read_csv(configs.INITIAL_DATASET_PATH)
     starting_folder = pathlib.Path(__file__).parent.absolute()
-    # left_sha = "afd2d45cacac80d86d7920788cf5a16a4d3c3bbc"
-    # right_sha = "98e035abc3c37c07e866c8dc0416cc60caa694e2"
-    # project = "cwensel/cascading"
-    # file_path = "cwensel/cascading/src/core/cascading/flow/planner/FlowStepJob.java"
-    # file_path = file_path.replace(f"{project}/", "")
-    # line_start = 219
-    # line_end = 224 
-    # line_separator = 221
-    # project_folder = "/mnt/c/Users/HelenoCampos/Documents/workspace_test/analysis/cascading"
+    data = []
+    columns = ["chunk_id", "left_size", "right_size", "authors_left", "authors_right"]
+    current_index = 0
     for index, row in df.iterrows():
+        current_index +=1
+        status = (current_index / len(df)) * 100
+        print(f"{time.ctime()} ### {status:.1f}% of chunks processed. Processing chunk {row['chunk_id']} for project: {row['project']}")
         left_sha = row['leftsha']
         right_sha = row['rightsha']
         project = row['project']
@@ -182,54 +176,17 @@ def main():
         if os.path.exists(project_folder):
             os.chdir(project_folder)
             if merge(left_sha, right_sha):
-                print('=============================')
-                print(f"{row['chunk_id']}: {project} {row['sha']} {file_path} ")
-                print('--------WHOLE CONFLICT----------')
-                show_file_lines(f'{os.getcwd()}/{file_path}', line_start, line_end)
-                print('------------------')
-                get_chunks_author(file_path, line_start, line_end, line_separator, merge_base)
-                input()
+                # print('=============================')
+                # print(f"{row['chunk_id']}: {project} {row['sha']} {file_path} ")
+                # print('--------WHOLE CONFLICT----------')
+                # show_file_lines(f'{os.getcwd()}/{file_path}', line_start, line_end)
+                # print('------------------')
+                left_size = line_separator - line_start - 1
+                right_size = line_end - line_separator - 1
+                authors_left_dict, authors_right_dict = get_chunks_author(file_path, line_start, line_end, line_separator, merge_base)
+                data.append([row['chunk_id'], left_size, right_size, authors_left_dict, authors_right_dict])
+                # input()
         os.chdir(starting_folder)
+    pd.DataFrame(data, columns=columns).to_csv(f"{configs.DATA_PATH}/chunk_authors.csv", index=False)
 
-# def main():
-#     df = pd.read_csv(configs.INITIAL_DATASET_PATH)
-#     starting_folder = pathlib.Path(__file__).parent.absolute()
-#     collected_commits = set()
-#     extracted_data = []
-#     print(f'Starting the collection process for {len(df)} chunks...')
-#     current_index = 0
-#     for index, row in df.iterrows():
-#         current_index +=1
-#         status = (current_index / len(df)) * 100
-#         print(f"{time.ctime()} ### {status:.1f}% of chunks processed. Processing chunk {row['chunk_id']} for project: {row['project']}")
-#         commit_index = f"{row['project']}-{row['sha']}"
-#         if(commit_index not in collected_commits): # since these attributes are related to the commit and not to the chunk, we only collect it if the merge commit (sha) is not already collected
-#             data = []
-#             data.append(row['chunk_id'])
-#             data.append(row['sha'])
-#             data.append(row['project'])
-#             project_folder = f"{configs.REPOS_PATH}/{row['project']}"
-#             if os.path.exists(project_folder):
-#                 os.chdir(project_folder)
-#                 left_insertions, left_deletions = get_number_changed_lines(row['sha'], row['leftsha'])
-#                 right_insertions, right_deletions = get_number_changed_lines(row['sha'], row['rightsha'])
-#                 # print(f'left insertions: {left_insertions}  / left deletions: {left_deletions} / right insertions: {right_insertions}  /right deletions: {right_deletions}')
-#                 conclusion_delay = get_conclusion_delay(row['leftsha'], row['rightsha'])
-#                 keywords_frequency = get_keywords_frequency(row['leftsha'], row['rightsha'], row['basesha'])
-#                 # print(f'conclusion delay: {conclusion_delay} | keywords frequency: {keywords_frequency}')
-#                 data.extend([left_insertions, left_deletions, right_insertions, right_deletions,conclusion_delay])
-#                 for keyword, frequency in keywords_frequency.items():
-#                     data.append(frequency)
-#                 collected_commits.add(commit_index)
-#                 extracted_data.append(data)
-#                 os.chdir(starting_folder)
-
-#     os.chdir(starting_folder)
-#     columns = ['chunk_id', 'sha', 'project', 'left_lines_added', 'left_lines_removed', 'right_lines_added', 'right_lines_removed', 'conclusion_delay']
-#     columns.extend(['keyword_fix', 'keyword_bug', 'keyword_feature', 'keyword_improve', 'keyword_document', 'keyword_refactor', 'keyword_update'])
-#     columns.extend(['keyword_add', 'keyword_remove', 'keyword_use', 'keyword_delete', 'keyword_change'])
-
-#     pd.DataFrame(extracted_data, columns = columns).to_csv(f'{configs.DATA_PATH}/collected_attributes1.csv', index=False)
-
-# main()
 main()
