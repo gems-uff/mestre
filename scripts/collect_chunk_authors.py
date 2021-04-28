@@ -83,11 +83,12 @@ def extract_authors(blame_output):
             if '(' in line:
                 line_parts = line.strip().split('(')[1].split()
                 # print(line_parts)
-                author = line_parts[0].replace('<','').replace('>','').replace('(','')
-                if author in authors:
-                    authors[author]['modified']+=1
-                else:
-                    authors[author]={'modified': 1, 'deleted': 0, 'moved/renamed':False}
+                if(line_parts != []):
+                    author = line_parts[0].replace('<','').replace('>','').replace('(','')
+                    if author in authors:
+                        authors[author]['modified']+=1
+                    else:
+                        authors[author]={'modified': 1, 'deleted': 0, 'moved/renamed':False}
     return authors
 
 
@@ -146,7 +147,7 @@ def execute_command(command):
     try:
         my_env = os.environ.copy()
         # print(command)
-        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env)
+        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env, encoding="latin-1")
         # print(result)
         return result
     except subprocess.CalledProcessError as e:
@@ -160,10 +161,11 @@ def main():
     data = []
     columns = ["chunk_id", "left_size", "right_size", "authors_left", "authors_right"]
     current_index = 0
+    save_every = 50
     for index, row in df.iterrows():
         current_index +=1
         status = (current_index / len(df)) * 100
-        print(f"{time.ctime()} ### {status:.1f}% of chunks processed. Processing chunk {row['chunk_id']} for project: {row['project']}")
+        print(f"{time.ctime()} ### {status:.1f}% of chunks processed. Processing chunk {row['chunk_id']} for project: {row['project']}", flush=True)
         left_sha = row['leftsha']
         right_sha = row['rightsha']
         project = row['project']
@@ -187,6 +189,8 @@ def main():
                 data.append([row['chunk_id'], left_size, right_size, authors_left_dict, authors_right_dict])
                 # input()
         os.chdir(starting_folder)
+        if current_index % save_every == 0:
+            pd.DataFrame(data, columns=columns).to_csv(f"{configs.DATA_PATH}/chunk_authors.csv", index=False)        
     pd.DataFrame(data, columns=columns).to_csv(f"{configs.DATA_PATH}/chunk_authors.csv", index=False)
 
 main()
