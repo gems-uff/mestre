@@ -147,7 +147,7 @@ def execute_command(command):
     try:
         my_env = os.environ.copy()
         # print(command)
-        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env)
+        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env, encoding="latin-1")
         # print(result)
         return result
     except subprocess.CalledProcessError as e:
@@ -165,7 +165,7 @@ def main():
     for index, row in df.iterrows():
         current_index +=1
         status = (current_index / len(df)) * 100
-        print(f"{time.ctime()} ### {status:.1f}% of chunks processed. Processing chunk {row['chunk_id']} for project: {row['project']}")
+        print(f"{time.ctime()} ### {status:.1f}% of chunks processed. Processing chunk {row['chunk_id']} for project: {row['project']}", flush=True)
         left_sha = row['leftsha']
         right_sha = row['rightsha']
         project = row['project']
