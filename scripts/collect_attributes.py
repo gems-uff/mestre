@@ -98,12 +98,21 @@ def execute_command(command):
         print("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output), flush=True)
     return ''
 
+# this configuration is necessary for some extra large projects like android/platform_framework_base
+def config_limits():
+    command = 'git config diff.renamelimit 15345'
+    execute_command(command)
+    command = 'git config merge.renamelimit 15345'
+    execute_command(command)
+
+
 def main():
     df = pd.read_csv(configs.INITIAL_DATASET_PATH)
     starting_folder = pathlib.Path(__file__).parent.absolute()
     collected_commits = set()
     extracted_data = []
     print(f'Starting the collection process for {len(df)} chunks...')
+    config_limits()
     current_index = 0
     for index, row in df.iterrows():
         current_index +=1
