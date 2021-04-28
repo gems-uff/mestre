@@ -92,7 +92,7 @@ def get_conclusion_delay(parent1SHA, parent2SHA):
 def execute_command(command):
     try:
         my_env = os.environ.copy()
-        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env)
+        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env, encoding='latin-1')
         return result
     except subprocess.CalledProcessError as e:
         print("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output), flush=True)
@@ -107,7 +107,7 @@ def config_limits():
 
 
 def main():
-    df = pd.read_csv(configs.INITIAL_DATASET_PATH)
+    df = pd.read_csv(configs.INITIAL_DATASET_PATH, encoding="utf-8")
     starting_folder = pathlib.Path(__file__).parent.absolute()
     collected_commits = set()
     extracted_data = []
