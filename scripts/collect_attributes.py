@@ -121,7 +121,7 @@ def main():
     for index, row in df.iterrows():
         current_index +=1
         status = (current_index / len(df)) * 100
-        print(f"{time.ctime()} ### {status:.1f}% of chunks processed. Processing chunk {row['chunk_id']} for project: {row['project']}")
+        print(f"{time.ctime()} ### {status:.1f}% of chunks processed. Processing chunk {row['chunk_id']} for project: {row['project']}", flush=True)
         commit_index = f"{row['project']}-{row['sha']}"
         if(commit_index not in collected_commits): # since these attributes are related to the commit and not to the chunk, we only collect it if the merge commit (sha) is not already collected
             data = []
