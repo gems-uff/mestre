@@ -114,6 +114,10 @@ def main():
     print(f'Starting the collection process for {len(df)} chunks...')
     config_limits()
     current_index = 0
+    columns = ['chunk_id', 'sha', 'project', 'left_lines_added', 'left_lines_removed', 'right_lines_added', 'right_lines_removed', 'conclusion_delay']
+    columns.extend(['keyword_fix', 'keyword_bug', 'keyword_feature', 'keyword_improve', 'keyword_document', 'keyword_refactor', 'keyword_update'])
+    columns.extend(['keyword_add', 'keyword_remove', 'keyword_use', 'keyword_delete', 'keyword_change'])
+    save_every = 50
     for index, row in df.iterrows():
         current_index +=1
         status = (current_index / len(df)) * 100
@@ -139,11 +143,9 @@ def main():
                 collected_commits.add(commit_index)
                 extracted_data.append(data)
                 os.chdir(starting_folder)
-
+        if current_index % save_every == 0:
+            pd.DataFrame(extracted_data, columns = columns).to_csv(f'{configs.DATA_PATH}/collected_attributes1.csv', index=False)
     os.chdir(starting_folder)
-    columns = ['chunk_id', 'sha', 'project', 'left_lines_added', 'left_lines_removed', 'right_lines_added', 'right_lines_removed', 'conclusion_delay']
-    columns.extend(['keyword_fix', 'keyword_bug', 'keyword_feature', 'keyword_improve', 'keyword_document', 'keyword_refactor', 'keyword_update'])
-    columns.extend(['keyword_add', 'keyword_remove', 'keyword_use', 'keyword_delete', 'keyword_change'])
 
     pd.DataFrame(extracted_data, columns = columns).to_csv(f'{configs.DATA_PATH}/collected_attributes1.csv', index=False)
 
