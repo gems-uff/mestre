@@ -3,3 +3,4 @@
 repos/**
 scripts/github_keys
 data/**
+.DS_Store
