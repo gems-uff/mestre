@@ -106,10 +106,10 @@ def config_limits():
     execute_command(command)
 
 def check_commits_consistency(commits):
-    for commit in commits:
-        command = f'git show {commit}'
+    for commit_SHA in commits:
+        command = f'git rev-parse --quiet --verify {commit_SHA}^{{commit}}'
         output = execute_command(command)
-        if '' in output:
+        if '' == output: # there is no object with this SHA in this repository
             return False
     return True
 
