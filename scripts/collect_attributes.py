@@ -105,6 +105,18 @@ def config_limits():
     command = 'git config merge.renamelimit 15345'
     execute_command(command)
 
+def check_commits_consistency(commits):
+    for commit in commits:
+        command = f'git show {commit}'
+        output = execute_command(command)
+        if '' in output:
+            return False
+    return True
+
+def write_failed_chunks(failed):
+    with open('failed_chunks.txt', 'w') as file:
+        for failed_chunk in failed:
+            file.write(f"{failed_chunk[0]}:{failed_chunk[1]}\n")
 
 def main():
     df = pd.read_csv(configs.INITIAL_DATASET_PATH, encoding="utf-8")
@@ -118,6 +130,7 @@ def main():
     columns.extend(['keyword_fix', 'keyword_bug', 'keyword_feature', 'keyword_improve', 'keyword_document', 'keyword_refactor', 'keyword_update'])
     columns.extend(['keyword_add', 'keyword_remove', 'keyword_use', 'keyword_delete', 'keyword_change'])
     save_every = 50
+    failed_chunks = []
     for index, row in df.iterrows():
         current_index +=1
         status = (current_index / len(df)) * 100
@@ -131,22 +144,29 @@ def main():
             project_folder = f"{configs.REPOS_PATH}/{row['project']}"
             if os.path.exists(project_folder):
                 os.chdir(project_folder)
-                left_insertions, left_deletions = get_number_changed_lines(row['sha'], row['leftsha'])
-                right_insertions, right_deletions = get_number_changed_lines(row['sha'], row['rightsha'])
-                # print(f'left insertions: {left_insertions}  / left deletions: {left_deletions} / right insertions: {right_insertions}  /right deletions: {right_deletions}')
-                conclusion_delay = get_conclusion_delay(row['leftsha'], row['rightsha'])
-                keywords_frequency = get_keywords_frequency(row['leftsha'], row['rightsha'], row['basesha'])
-                # print(f'conclusion delay: {conclusion_delay} | keywords frequency: {keywords_frequency}')
-                data.extend([left_insertions, left_deletions, right_insertions, right_deletions,conclusion_delay])
-                for keyword, frequency in keywords_frequency.items():
-                    data.append(frequency)
-                collected_commits.add(commit_index)
-                extracted_data.append(data)
+                if not check_commits_consistency([row['sha'], row['leftsha'], row['rightsha'], row['basesha']]):
+                    failed_chunks.append([row['chunk_id'], 'BAD_COMMIT'])
+                else:
+                    left_insertions, left_deletions = get_number_changed_lines(row['sha'], row['leftsha'])
+                    right_insertions, right_deletions = get_number_changed_lines(row['sha'], row['rightsha'])
+                    # print(f'left insertions: {left_insertions}  / left deletions: {left_deletions} / right insertions: {right_insertions}  /right deletions: {right_deletions}')
+                    conclusion_delay = get_conclusion_delay(row['leftsha'], row['rightsha'])
+                    keywords_frequency = get_keywords_frequency(row['leftsha'], row['rightsha'], row['basesha'])
+                    # print(f'conclusion delay: {conclusion_delay} | keywords frequency: {keywords_frequency}')
+                    data.extend([left_insertions, left_deletions, right_insertions, right_deletions,conclusion_delay])
+                    for keyword, frequency in keywords_frequency.items():
+                        data.append(frequency)
+                    collected_commits.add(commit_index)
+                    extracted_data.append(data)
                 os.chdir(starting_folder)
+            else:
+                failed_chunks.append([row['chunk_id'], 'REPO_NOT_AVAILABLE'])
         if current_index % save_every == 0:
             pd.DataFrame(extracted_data, columns = columns).to_csv(f'{configs.DATA_PATH}/collected_attributes1.csv', index=False)
+            write_failed_chunks(failed_chunks)
     os.chdir(starting_folder)
 
     pd.DataFrame(extracted_data, columns = columns).to_csv(f'{configs.DATA_PATH}/collected_attributes1.csv', index=False)
+    write_failed_chunks(failed_chunks)
 
 main()
