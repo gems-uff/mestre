@@ -60,13 +60,13 @@ def main():
             data.append(row[column])
 
         commit = collected_attributes1[collected_attributes1['sha'] == sha]
-        if len(commit) == 1:
+        if len(commit) > 0:
             for column in columns1:
                 data.append(commit.iloc[0][column])
         else:
             data.extend([None] * len(columns1))
         chunk = collected_attributes2[collected_attributes2['chunk_id'] == chunk_id]
-        if len(chunk) == 1:
+        if len(chunk) > 0:
             for column in columns2:
                 data.append(chunk.iloc[0][column])
         else:
