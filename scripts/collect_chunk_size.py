@@ -43,7 +43,9 @@ def getRightChunkCode(chunkCode):
     return rightChunk    
 
 def get_chunk_relative_size(chunk_side_code, other_side_chunk_code):
-    return len(chunk_side_code)/(len(chunk_side_code)+len(other_side_chunk_code))
+    if len(chunk_side_code)+len(other_side_chunk_code) != 0:
+        return len(chunk_side_code)/(len(chunk_side_code)+len(other_side_chunk_code))
+    return 0
 
 df = pd.read_csv(configs.INITIAL_DATASET_PATH)
 
