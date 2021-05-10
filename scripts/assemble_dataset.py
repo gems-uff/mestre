@@ -37,17 +37,20 @@ def main():
     collected_attributes1 = pd.read_csv(f"{configs.DATA_PATH}/collected_attributes1.csv")
     collected_attributes2 = pd.read_csv(f"{configs.DATA_PATH}/collected_attributes2.csv")
     collected_attributes3 = pd.read_csv(f"{configs.DATA_PATH}/authors_self_conflicts.csv")
+    collected_attributes4 = pd.read_csv(f"{configs.DATA_PATH}/chunk_sizes.csv")
 
     columns = list(labelled_dataset.columns)
     columns1 = ["left_lines_added",	"left_lines_removed",	"right_lines_added",	"right_lines_removed",	"conclusion_delay",	"keyword_fix",	"keyword_bug",	"keyword_feature",	"keyword_improve",	"keyword_document",	"keyword_refactor",	"keyword_update",	"keyword_add",	"keyword_remove",	"keyword_use",	"keyword_delete",	"keyword_change"]
     columns2 = ["leftCC",	"rightCC",	"fileCC",	"chunkAbsSize",	"chunkRelSize",	"chunkPosition"]
     columns3 = ["Branching time",	"Merge isolation time",	"Devs 1",	"Devs 2",	"Different devs",	"Same devs",	"Devs intersection",	"Commits 1",	"Commits 2",	"Changed files 1",	"Changed files 2", "Changed files intersection"]
     columns4 = ["self_conflict_perc"]
+    columns5 = ["chunk_left_abs_size",	"chunk_left_rel_size", "chunk_right_abs_size", "chunk_right_rel_size"]
 
     columns.extend(columns1)
     columns.extend(columns2)
     columns.extend(columns3)
     columns.extend(columns4)
+    columns.extend(columns5)
     
 
     print(f'Starting the assemble process for {len(labelled_dataset)} chunks...')
@@ -85,6 +88,13 @@ def main():
         chunk = collected_attributes3[collected_attributes3['chunk_id'] == chunk_id]
         if len(chunk) > 0:
             for column in columns4:
+                data.append(chunk.iloc[0][column])
+        else:
+            data.extend([None] * len(columns4))
+
+        chunk = collected_attributes4[collected_attributes4['chunk_id'] == chunk_id]
+        if len(chunk) > 0:
+            for column in columns5:
                 data.append(chunk.iloc[0][column])
         else:
             data.extend([None] * len(columns4))
