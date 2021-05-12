@@ -145,7 +145,7 @@ print("Processing start at %s" % (datetime.datetime.now()))
 grouped_df = df.groupby('project')
 for group_name, df_group in grouped_df:
     for index, row in df_group.iterrows():
-        chunkCount+=1
+        chunk_count+=1
         project_folder = f"{configs.REPOS_PATH}/{row['project']}"
         if os.path.exists(project_folder):
             os.chdir(project_folder)
@@ -173,7 +173,7 @@ for group_name, df_group in grouped_df:
                     right_chunk_absolute_size = len(rightChunk)
                     right_chunk_relative_size = get_chunk_relative_size(rightChunk, leftChunk)
 
-                    percentage = chunkCount/df.size
+                    percentage = chunk_count/df.size
                     row2.append(row['chunk_id'])
                     row2.extend([leftCC, rightCC, fileCC, fileSize, chunkAbsSize, chunkRelSize, chunkPosition])
                     row2.extend([left_chunk_absolute_size, left_chunk_relative_size])
@@ -187,10 +187,10 @@ for group_name, df_group in grouped_df:
                 failed_chunks.append([row['chunk_id'], 'CANT_MERGE'])
             if(counter >= print_every):
                 size = len(df)
-                percentage = (chunkCount/size)*100
+                percentage = (chunk_count/size)*100
                 intermediary_time = time.time() - start_time
                 estimated = ((intermediary_time * 100)/percentage)/60/60
-                print('{} --- {:.2f}% done... estimated time to finish: {:.2f} hours. {} of {} rows processed.'.format(datetime.datetime.now(),percentage, estimated, chunkCount, size), flush=True)
+                print('{} --- {:.2f}% done... estimated time to finish: {:.2f} hours. {} of {} rows processed.'.format(datetime.datetime.now(),percentage, estimated, chunk_count, size), flush=True)
                 counter = 0
             counter = counter+1
             data.append(row2)
