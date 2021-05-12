@@ -30,7 +30,10 @@ def getChunkContent(chunkId):
 
 # chunk size relative to the file size
 def getChunkRelativeSize(chunkSize, fileSize):
-    return chunkSize/fileSize 
+    if fileSize!= 0:
+        return chunkSize/fileSize 
+    else:
+        return 0
 
 def getChunkStartPosition(beginLine, fileSize): # return the quarter in which the chunk is located in the file
     # |----|----|----|----|
@@ -133,6 +136,7 @@ repos = {}
 data = []
 start_time = time.time()
 counter = 0
+chunk_count = 0
 print_every = 20
 failed_chunks = []
 
@@ -141,6 +145,7 @@ print("Processing start at %s" % (datetime.datetime.now()))
 grouped_df = df.groupby('project')
 for group_name, df_group in grouped_df:
     for index, row in df_group.iterrows():
+        chunk_count+=1
         project_folder = f"{configs.REPOS_PATH}/{row['project']}"
         if os.path.exists(project_folder):
             os.chdir(project_folder)
@@ -151,7 +156,7 @@ for group_name, df_group in grouped_df:
                 repoName = row['project']
                 file_path = row['path'].replace(row['project']+"/", '')
                 fileContent = get_file_content(file_path)
-                if fileContent != None:
+                if fileContent != []:
                     chunkContent = getChunkContent(row['chunk_id'])
                     fileSize = getFileSize(fileContent)
                     leftChunk = getLeftChunkCode(chunkContent)
@@ -168,7 +173,7 @@ for group_name, df_group in grouped_df:
                     right_chunk_absolute_size = len(rightChunk)
                     right_chunk_relative_size = get_chunk_relative_size(rightChunk, leftChunk)
 
-                    percentage = index/df.size
+                    percentage = chunk_count/df.size
                     row2.append(row['chunk_id'])
                     row2.extend([leftCC, rightCC, fileCC, fileSize, chunkAbsSize, chunkRelSize, chunkPosition])
                     row2.extend([left_chunk_absolute_size, left_chunk_relative_size])
@@ -182,10 +187,10 @@ for group_name, df_group in grouped_df:
                 failed_chunks.append([row['chunk_id'], 'CANT_MERGE'])
             if(counter >= print_every):
                 size = len(df)
-                percentage = (index/size)*100
+                percentage = (chunk_count/size)*100
                 intermediary_time = time.time() - start_time
                 estimated = ((intermediary_time * 100)/percentage)/60/60
-                print('{} --- {:.2f}% done... estimated time to finish: {:.2f} hours. {} of {} rows processed.'.format(datetime.datetime.now(),percentage, estimated, index, size), flush=True)
+                print('{} --- {:.2f}% done... estimated time to finish: {:.2f} hours. {} of {} rows processed.'.format(datetime.datetime.now(),percentage, estimated, chunk_count, size), flush=True)
                 counter = 0
             counter = counter+1
             data.append(row2)
