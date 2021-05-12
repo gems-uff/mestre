@@ -83,8 +83,11 @@ def execute_command(command):
     return ''
 
 def get_file_content(file_path):
-    with open(file_path) as f:
-        return f.readlines()
+    try:
+        with open(file_path, encoding='latin-1') as f:
+            return f.readlines()
+    except:
+        pass
     return []
 
 def getLeftChunkCode(lines):
@@ -174,7 +177,7 @@ for group_name, df_group in grouped_df:
                     failed_chunks.append([row['chunk_id'], 'INVALID_FILE'])
                 
                 #print('{} --- {:.2f}% done... Requests remaining: {}'.format(datetime.datetime.now(),percentage, requestsRemaining), end="\r")
-                print("LeftCC: %d  RightCC: %d  FileCC: %d Chunk Absolute size: %d  Relative size: %.2f   fileSize: %.2f   #Position: %d  "% (leftCC, rightCC, fileCC, chunkAbsSize, chunkRelSize, fileSize, chunkPosition), flush=True)
+                print("chunk_id: %d LeftCC: %d  RightCC: %d  FileCC: %d Chunk Absolute size: %d  Relative size: %.2f   fileSize: %.2f   #Position: %d  "% (row['chunk_id'], leftCC, rightCC, fileCC, chunkAbsSize, chunkRelSize, fileSize, chunkPosition), flush=True)
             else:
                 failed_chunks.append([row['chunk_id'], 'CANT_MERGE'])
             if(counter >= print_every):
