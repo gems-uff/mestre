@@ -10,3 +10,13 @@ This file contains queries that can answer the following questions about the dat
 - Which projects have failed merges?
 - Which projects have failed merges, considering only Java files?
 
+## [queriesDB.sql](queriesDB.sql)
+
+Contents:
+
+- Initial dataset for mining
+- Number of conflicting chunks per project
+- Number of types of developer decision per merge
+- Number of conflicting chunks per merge
+- Number of developer decision types per merge
+- Number of developer decision types per conflicting file
