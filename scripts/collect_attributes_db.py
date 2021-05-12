@@ -10,32 +10,25 @@ import pathlib
 import os
 import subprocess
 
-def getCyclomaticComplexity(code):
-    ifs = code.count("if")
-    whiles = code.count("while")
-    fors = code.count("for")
-    cases = code.count("case")
-    logicalOperators = code.count("&&") + code.count("||")
+def getCyclomaticComplexity(lines):
+    ifs = whiles = fors = cases = logicalOperators = 0
+    for line in lines:
+        ifs += line.count("if")
+        whiles += line.count("while")
+        fors += line.count("for")
+        cases += line.count("case")
+        logicalOperators += line.count("&&") + line.count("||")
     CC = ifs + whiles + fors + logicalOperators + cases + 1
     #print("ifs: {}  whiles: {}  fors: {}  cases: {}  logical: {}".format(ifs,whiles,fors,cases,logicalOperators))
     return CC
 
-def getFileSize(code):
-    return len(code.split("\n"))
+def getFileSize(lines):
+    return len(lines)
 
 def getChunkContent(chunkId):
-    rows = database.get_conflict(chunkId)
-    if(rows is not None):
-        content = ""
-        for row in rows:
-            content += row + "\n"
-        return content
-    return rows
+    return database.get_conflict(chunkId)
 
-
-def getChunkAbsoluteSize(beginLine, endLine):
-    return (endLine - beginLine) + 1
-    
+# chunk size relative to the file size
 def getChunkRelativeSize(chunkSize, fileSize):
     return chunkSize/fileSize 
 
@@ -57,9 +50,45 @@ def getChunkStartPosition(beginLine, fileSize): # return the quarter in which th
     else:
         return 4
     
-def getLeftChunkCode(chunkCode):
-    lines = chunkCode.split("\n")
-    leftChunk = ""
+def reset():
+    command = "git reset --hard"
+    output = execute_command(command)
+    if "HEAD is now at" in output.strip():
+        return True
+    return False
+
+def checkout(sha):
+    if reset():
+        command = f"git checkout {sha}"
+        output = execute_command(command)
+        if "HEAD is now at" in output.strip():
+            return True
+    return False
+
+def merge(left_sha, right_sha):
+    if checkout(left_sha):
+        command = f"git merge {right_sha}"
+        output = execute_command(command)
+        return True
+    return False
+
+def execute_command(command):
+    try:
+        my_env = os.environ.copy()
+        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env, encoding="latin-1")
+        return result
+    except subprocess.CalledProcessError as e:
+        pass
+        # print("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output), flush=True)
+    return ''
+
+def get_file_content(file_path):
+    with open(file_path) as f:
+        return f.readlines()
+    return []
+
+def getLeftChunkCode(lines):
+    leftChunk = []
     start = False
     for line in lines:
         if("<<<<<<<" in line):
@@ -68,12 +97,11 @@ def getLeftChunkCode(chunkCode):
         if("=======" in line):
             break
         if(start == True):
-            leftChunk+=line+"\n"
+            leftChunk.append(line)
     return leftChunk
     
-def getRightChunkCode(chunkCode):
-    lines = chunkCode.split("\n")
-    rightChunk = ""
+def getRightChunkCode(lines):
+    rightChunk = []
     start = False
     for line in lines:
         if("=======" in line):
@@ -82,23 +110,19 @@ def getRightChunkCode(chunkCode):
         if(">>>>>>>" in line):
             break
         if(start == True):
-            rightChunk+=line+"\n"
+            rightChunk.append(line)
     return rightChunk    
 
-def execute_command(command):
-    try:
-        my_env = os.environ.copy()
-        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env)
-        return result
-    except subprocess.CalledProcessError as e:
-        print("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output), flush=True)
-    return ''
+# size of one side of the chunk relative to the other side of the chunk
+def get_chunk_relative_size(chunk_side_code, other_side_chunk_code):
+    if len(chunk_side_code)+len(other_side_chunk_code) != 0:
+        return len(chunk_side_code)/(len(chunk_side_code)+len(other_side_chunk_code))
+    return 0
 
-def get_file_content(commitSHA, file_path):
-    command = f"git show {commitSHA}:{file_path}"
-    print(command)
-    return execute_command(command)
-
+def write_failed_chunks(failed):
+    with open(f'{configs.LOGS_PATH}/collect_attributes_db_failed.txt', 'w') as file:
+        for failed_chunk in failed:
+            file.write(f"{failed_chunk[0]}:{failed_chunk[1]}\n")
 
 df = pd.read_csv(configs.INITIAL_DATASET_PATH)
 
@@ -107,6 +131,7 @@ data = []
 start_time = time.time()
 counter = 0
 print_every = 20
+failed_chunks = []
 
 starting_folder = pathlib.Path(__file__).parent.absolute()
 print("Processing start at %s" % (datetime.datetime.now()))
@@ -116,50 +141,63 @@ for group_name, df_group in grouped_df:
         project_folder = f"{configs.REPOS_PATH}/{row['project']}"
         if os.path.exists(project_folder):
             os.chdir(project_folder)
-            row2 = []
-            beginLine, endLine = database.get_conflict_position(row['chunk_id'])
-            sha = row['sha']
-            repoName = row['project']
-            file_path = row['path'].replace(row['project']+"/", '')
-            fileContent = get_file_content(sha, file_path)
-            chunkContent = getChunkContent(row['chunk_id'])
-            fileSize = getFileSize(fileContent)
-            chunkSize = getFileSize(chunkContent)
-            leftChunk = getLeftChunkCode(chunkContent)
-            rightChunk = getRightChunkCode(chunkContent)
-            leftCC = getCyclomaticComplexity(leftChunk)
-            rightCC = getCyclomaticComplexity(rightChunk)
-            fileCC = getCyclomaticComplexity(fileContent)
-            chunkAbsSize = getChunkAbsoluteSize(beginLine, endLine)
-            chunkRelSize = getChunkRelativeSize(chunkSize, fileSize)
-            chunkPosition = getChunkStartPosition(beginLine, fileSize)
-            percentage = index/df.size
-            row2.append(row['chunk_id'])
-            row2.append(leftCC)
-            row2.append(rightCC)
-            row2.append(fileCC)
-            row2.append(chunkAbsSize)
-            row2.append(chunkRelSize)
-            row2.append(chunkPosition)
-            #print('{} --- {:.2f}% done... Requests remaining: {}'.format(datetime.datetime.now(),percentage, requestsRemaining), end="\r")
-            print("LeftCC: %d  RightCC: %d  FileCC: %d Absolute size: %d  Relative size: %.2f      #Position: %d  "% (leftCC, rightCC, fileCC, chunkAbsSize, chunkRelSize, chunkPosition))
+            if merge(row['leftsha'], row['rightsha']):
+                row2 = []
+                beginLine, endLine = database.get_conflict_position(row['chunk_id'])
+                sha = row['sha']
+                repoName = row['project']
+                file_path = row['path'].replace(row['project']+"/", '')
+                fileContent = get_file_content(file_path)
+                if fileContent != None:
+                    chunkContent = getChunkContent(row['chunk_id'])
+                    fileSize = getFileSize(fileContent)
+                    leftChunk = getLeftChunkCode(chunkContent)
+                    rightChunk = getRightChunkCode(chunkContent)
+                    leftCC = getCyclomaticComplexity(leftChunk)
+                    rightCC = getCyclomaticComplexity(rightChunk)
+                    fileCC = getCyclomaticComplexity(fileContent)
+                    chunkAbsSize = len(leftChunk) + len(rightChunk)
+                    chunkRelSize = getChunkRelativeSize(chunkAbsSize, fileSize)
+                    chunkPosition = getChunkStartPosition(beginLine, fileSize)
+                    
+                    left_chunk_absolute_size = len(leftChunk)
+                    left_chunk_relative_size = get_chunk_relative_size(leftChunk, rightChunk)
+                    right_chunk_absolute_size = len(rightChunk)
+                    right_chunk_relative_size = get_chunk_relative_size(rightChunk, leftChunk)
+
+                    percentage = index/df.size
+                    row2.append(row['chunk_id'])
+                    row2.extend([leftCC, rightCC, fileCC, fileSize, chunkAbsSize, chunkRelSize, chunkPosition])
+                    row2.extend([left_chunk_absolute_size, left_chunk_relative_size])
+                    row2.extend([right_chunk_absolute_size, right_chunk_relative_size])
+                else:
+                    failed_chunks.append([row['chunk_id'], 'INVALID_FILE'])
+                
+                #print('{} --- {:.2f}% done... Requests remaining: {}'.format(datetime.datetime.now(),percentage, requestsRemaining), end="\r")
+                print("LeftCC: %d  RightCC: %d  FileCC: %d Chunk Absolute size: %d  Relative size: %.2f   fileSize: %.2f   #Position: %d  "% (leftCC, rightCC, fileCC, chunkAbsSize, chunkRelSize, fileSize, chunkPosition), flush=True)
+            else:
+                failed_chunks.append([row['chunk_id'], 'CANT_MERGE'])
             if(counter >= print_every):
                 size = len(df)
                 percentage = (index/size)*100
                 intermediary_time = time.time() - start_time
                 estimated = ((intermediary_time * 100)/percentage)/60/60
-                print('{} --- {:.2f}% done... estimated time to finish: {:.2f} hours. {} of {} rows processed.'.format(datetime.datetime.now(),percentage, estimated, index, size))
+                print('{} --- {:.2f}% done... estimated time to finish: {:.2f} hours. {} of {} rows processed.'.format(datetime.datetime.now(),percentage, estimated, index, size), flush=True)
                 counter = 0
             counter = counter+1
             data.append(row2)
+        else:
+            failed_chunks.append([row['chunk_id'], 'REPO_NOT_AVAILABLE'])
         os.chdir(starting_folder)
-            
 
 elapsed_time = time.time() - start_time
 
 print()
+write_failed_chunks(failed_chunks)
 print("Processed in %d seconds. Exporting csv..." % (elapsed_time))
-df2 = pd.DataFrame(data, columns = ['chunk_id','leftCC', 'rightCC', 'fileCC', 'chunkAbsSize', 'chunkRelSize', 'chunkPosition'])
+columns = ['chunk_id','leftCC', 'rightCC', 'fileCC', 'fileSize' 'chunkAbsSize', 'chunkRelSize', 'chunkPosition']
+columns.extend(["chunk_left_abs_size", "chunk_left_rel_size", "chunk_right_abs_size", "chunk_right_rel_size"])
+df2 = pd.DataFrame(data, columns = columns)
 result_df = pd.merge(df,df2, on='chunk_id')
 result_file = f"{configs.DATA_PATH}/collected_attributes2.csv"
 result_df.to_csv(result_file, index=False)
