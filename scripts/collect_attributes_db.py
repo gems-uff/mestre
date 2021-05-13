@@ -130,15 +130,23 @@ def write_failed_chunks(failed):
         for failed_chunk in failed:
             file.write(f"{failed_chunk[0]}:{failed_chunk[1]}\n")
 
-df = pd.read_csv(configs.INITIAL_DATASET_PATH)
+def write_file(collected_data, project_df, failed_chunks):
+    write_failed_chunks(failed_chunks)
+    columns = ['chunk_id','leftCC', 'rightCC', 'fileCC', 'fileSize', 'chunkAbsSize', 'chunkRelSize', 'chunkPosition']
+    columns.extend(["chunk_left_abs_size", "chunk_left_rel_size", "chunk_right_abs_size", "chunk_right_rel_size"])
+    df2 = pd.DataFrame(collected_data, columns = columns)
+    result_df = pd.merge(project_df,df2, on='chunk_id')
+    result_file = f"{configs.DATA_PATH}/collected_attributes2.csv"
+    result_df.to_csv(result_file, index=False)   
 
+df = pd.read_csv(configs.INITIAL_DATASET_PATH)
 repos = {}
 data = []
+failed_chunks = []
 start_time = time.time()
 counter = 0
 chunk_count = 0
 print_every = 20
-failed_chunks = []
 
 starting_folder = pathlib.Path(__file__).parent.absolute()
 print("Processing start at %s" % (datetime.datetime.now()))
@@ -182,7 +190,7 @@ for group_name, df_group in grouped_df:
                     failed_chunks.append([row['chunk_id'], 'INVALID_FILE'])
                 
                 #print('{} --- {:.2f}% done... Requests remaining: {}'.format(datetime.datetime.now(),percentage, requestsRemaining), end="\r")
-                print("chunk_id: %d LeftCC: %d  RightCC: %d  FileCC: %d Chunk Absolute size: %d  Relative size: %.2f   fileSize: %.2f   #Position: %d  "% (row['chunk_id'], leftCC, rightCC, fileCC, chunkAbsSize, chunkRelSize, fileSize, chunkPosition), flush=True)
+                print("chunk_id: %d project: %s LeftCC: %d  RightCC: %d  FileCC: %d Chunk Absolute size: %d  Relative size: %.2f   fileSize: %.2f   #Position: %d  "% (row['chunk_id'], row['project'], leftCC, rightCC, fileCC, chunkAbsSize, chunkRelSize, fileSize, chunkPosition), flush=True)
             else:
                 failed_chunks.append([row['chunk_id'], 'CANT_MERGE'])
             if(counter >= print_every):
@@ -197,15 +205,10 @@ for group_name, df_group in grouped_df:
         else:
             failed_chunks.append([row['chunk_id'], 'REPO_NOT_AVAILABLE'])
         os.chdir(starting_folder)
+    write_file(data, df, failed_chunks)
 
 elapsed_time = time.time() - start_time
 
 print()
-write_failed_chunks(failed_chunks)
 print("Processed in %d seconds. Exporting csv..." % (elapsed_time))
-columns = ['chunk_id','leftCC', 'rightCC', 'fileCC', 'fileSize' 'chunkAbsSize', 'chunkRelSize', 'chunkPosition']
-columns.extend(["chunk_left_abs_size", "chunk_left_rel_size", "chunk_right_abs_size", "chunk_right_rel_size"])
-df2 = pd.DataFrame(data, columns = columns)
-result_df = pd.merge(df,df2, on='chunk_id')
-result_file = f"{configs.DATA_PATH}/collected_attributes2.csv"
-result_df.to_csv(result_file, index=False)
+write_file(data, df, failed_chunks)
