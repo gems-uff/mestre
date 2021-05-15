@@ -19,6 +19,10 @@ def getCyclomaticComplexity(lines):
         cases += line.count("case")
         logicalOperators += line.count("&&") + line.count("||")
     CC = ifs + whiles + fors + logicalOperators + cases + 1
+    
+    # dislaimer: since we analyze only fragments of code, we assume that if there is no code, the CC is zero.
+    if len(lines) == 0:
+        CC = 0
     #print("ifs: {}  whiles: {}  fors: {}  cases: {}  logical: {}".format(ifs,whiles,fors,cases,logicalOperators))
     return CC
 
