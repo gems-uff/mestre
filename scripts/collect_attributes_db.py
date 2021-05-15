@@ -68,11 +68,11 @@ def checkout(sha):
             return True
     return False
 
-def merge(left_sha, right_sha):
+def merge(left_sha, right_sha, file_path):
     if checkout(left_sha):
         command = f"git merge {right_sha}"
         output = execute_command(command)
-        if 'CONFLICT' in output:
+        if file_path in output:
             return True
     return False
 
@@ -82,9 +82,8 @@ def execute_command(command):
         result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env, encoding="latin-1")
         return result
     except subprocess.CalledProcessError as e:
-        pass
+        return e.output
         # print("command '{}' return with error (code {}): {}".format(e.cmd, e.returncode, e.output), flush=True)
-    return ''
 
 def get_file_content(file_path):
     try:
@@ -158,12 +157,12 @@ for group_name, df_group in grouped_df:
         project_folder = f"{configs.REPOS_PATH}/{row['project']}"
         if os.path.exists(project_folder):
             row2 = []
+            file_path = row['path'].replace(row['project']+"/", '')
             os.chdir(project_folder)
-            if merge(row['leftsha'], row['rightsha']):
+            if merge(row['leftsha'], row['rightsha'], file_path):
                 beginLine, endLine = database.get_conflict_position(row['chunk_id'])
                 sha = row['sha']
                 repoName = row['project']
-                file_path = row['path'].replace(row['project']+"/", '')
                 fileContent = get_file_content(file_path)
                 if fileContent != []:
                     chunkContent = getChunkContent(row['chunk_id'])
@@ -183,10 +182,13 @@ for group_name, df_group in grouped_df:
                     right_chunk_relative_size = get_chunk_relative_size(rightChunk, leftChunk)
 
                     percentage = chunk_count/df.size
-                    row2.append(row['chunk_id'])
-                    row2.extend([leftCC, rightCC, fileCC, fileSize, chunkAbsSize, chunkRelSize, chunkPosition])
-                    row2.extend([left_chunk_absolute_size, left_chunk_relative_size])
-                    row2.extend([right_chunk_absolute_size, right_chunk_relative_size])
+                    if chunkRelSize > 1:
+                        row2.append(row['chunk_id'])
+                        row2.extend([leftCC, rightCC, fileCC, fileSize, chunkAbsSize, chunkRelSize, chunkPosition])
+                        row2.extend([left_chunk_absolute_size, left_chunk_relative_size])
+                        row2.extend([right_chunk_absolute_size, right_chunk_relative_size])
+                    else:
+                        failed_chunks.append([row['chunk_id'], 'INCOSISTENT_MERGE_REPLAY'])
                 else:
                     failed_chunks.append([row['chunk_id'], 'INVALID_FILE'])
                 
