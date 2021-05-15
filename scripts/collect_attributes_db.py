@@ -156,57 +156,56 @@ for group_name, df_group in grouped_df:
     for index, row in df_group.iterrows():
         chunk_count+=1
         project_folder = f"{configs.REPOS_PATH}/{row['project']}"
-        if row['chunk_id'] == 1145670:
-            if os.path.exists(project_folder):
-                row2 = []
-                os.chdir(project_folder)
-                if merge(row['leftsha'], row['rightsha']):
-                    beginLine, endLine = database.get_conflict_position(row['chunk_id'])
-                    sha = row['sha']
-                    repoName = row['project']
-                    file_path = row['path'].replace(row['project']+"/", '')
-                    fileContent = get_file_content(file_path)
-                    if fileContent != []:
-                        chunkContent = getChunkContent(row['chunk_id'])
-                        fileSize = getFileSize(fileContent)
-                        leftChunk = getLeftChunkCode(chunkContent)
-                        rightChunk = getRightChunkCode(chunkContent)
-                        leftCC = getCyclomaticComplexity(leftChunk)
-                        rightCC = getCyclomaticComplexity(rightChunk)
-                        fileCC = getCyclomaticComplexity(fileContent)
-                        chunkAbsSize = len(leftChunk) + len(rightChunk)
-                        chunkRelSize = getChunkRelativeSize(chunkAbsSize, fileSize)
-                        chunkPosition = getChunkStartPosition(beginLine, fileSize)
-                        
-                        left_chunk_absolute_size = len(leftChunk)
-                        left_chunk_relative_size = get_chunk_relative_size(leftChunk, rightChunk)
-                        right_chunk_absolute_size = len(rightChunk)
-                        right_chunk_relative_size = get_chunk_relative_size(rightChunk, leftChunk)
-
-                        percentage = chunk_count/df.size
-                        row2.append(row['chunk_id'])
-                        row2.extend([leftCC, rightCC, fileCC, fileSize, chunkAbsSize, chunkRelSize, chunkPosition])
-                        row2.extend([left_chunk_absolute_size, left_chunk_relative_size])
-                        row2.extend([right_chunk_absolute_size, right_chunk_relative_size])
-                    else:
-                        failed_chunks.append([row['chunk_id'], 'INVALID_FILE'])
+        if os.path.exists(project_folder):
+            row2 = []
+            os.chdir(project_folder)
+            if merge(row['leftsha'], row['rightsha']):
+                beginLine, endLine = database.get_conflict_position(row['chunk_id'])
+                sha = row['sha']
+                repoName = row['project']
+                file_path = row['path'].replace(row['project']+"/", '')
+                fileContent = get_file_content(file_path)
+                if fileContent != []:
+                    chunkContent = getChunkContent(row['chunk_id'])
+                    fileSize = getFileSize(fileContent)
+                    leftChunk = getLeftChunkCode(chunkContent)
+                    rightChunk = getRightChunkCode(chunkContent)
+                    leftCC = getCyclomaticComplexity(leftChunk)
+                    rightCC = getCyclomaticComplexity(rightChunk)
+                    fileCC = getCyclomaticComplexity(fileContent)
+                    chunkAbsSize = len(leftChunk) + len(rightChunk)
+                    chunkRelSize = getChunkRelativeSize(chunkAbsSize, fileSize)
+                    chunkPosition = getChunkStartPosition(beginLine, fileSize)
                     
-                    #print('{} --- {:.2f}% done... Requests remaining: {}'.format(datetime.datetime.now(),percentage, requestsRemaining), end="\r")
-                    print("chunk_id: %d project: %s LeftCC: %d  RightCC: %d  FileCC: %d Chunk Absolute size: %d  Relative size: %.2f   fileSize: %.2f   #Position: %d  "% (row['chunk_id'], row['project'], leftCC, rightCC, fileCC, chunkAbsSize, chunkRelSize, fileSize, chunkPosition), flush=True)
+                    left_chunk_absolute_size = len(leftChunk)
+                    left_chunk_relative_size = get_chunk_relative_size(leftChunk, rightChunk)
+                    right_chunk_absolute_size = len(rightChunk)
+                    right_chunk_relative_size = get_chunk_relative_size(rightChunk, leftChunk)
+
+                    percentage = chunk_count/df.size
+                    row2.append(row['chunk_id'])
+                    row2.extend([leftCC, rightCC, fileCC, fileSize, chunkAbsSize, chunkRelSize, chunkPosition])
+                    row2.extend([left_chunk_absolute_size, left_chunk_relative_size])
+                    row2.extend([right_chunk_absolute_size, right_chunk_relative_size])
                 else:
-                    failed_chunks.append([row['chunk_id'], 'CANT_MERGE'])
-                if(counter >= print_every):
-                    size = len(df)
-                    percentage = (chunk_count/size)*100
-                    intermediary_time = time.time() - start_time
-                    estimated = ((intermediary_time * 100)/percentage)/60/60
-                    print('{} --- {:.2f}% done... estimated time to finish: {:.2f} hours. {} of {} rows processed.'.format(datetime.datetime.now(),percentage, estimated, chunk_count, size), flush=True)
-                    counter = 0
-                counter = counter+1
-                if len(row2) > 0:
-                    data.append(row2)
+                    failed_chunks.append([row['chunk_id'], 'INVALID_FILE'])
+                
+                #print('{} --- {:.2f}% done... Requests remaining: {}'.format(datetime.datetime.now(),percentage, requestsRemaining), end="\r")
+                print("chunk_id: %d project: %s LeftCC: %d  RightCC: %d  FileCC: %d Chunk Absolute size: %d  Relative size: %.2f   fileSize: %.2f   #Position: %d  "% (row['chunk_id'], row['project'], leftCC, rightCC, fileCC, chunkAbsSize, chunkRelSize, fileSize, chunkPosition), flush=True)
             else:
-                failed_chunks.append([row['chunk_id'], 'REPO_NOT_AVAILABLE'])
+                failed_chunks.append([row['chunk_id'], 'CANT_MERGE'])
+            if(counter >= print_every):
+                size = len(df)
+                percentage = (chunk_count/size)*100
+                intermediary_time = time.time() - start_time
+                estimated = ((intermediary_time * 100)/percentage)/60/60
+                print('{} --- {:.2f}% done... estimated time to finish: {:.2f} hours. {} of {} rows processed.'.format(datetime.datetime.now(),percentage, estimated, chunk_count, size), flush=True)
+                counter = 0
+            counter = counter+1
+            if len(row2) > 0:
+                data.append(row2)
+        else:
+            failed_chunks.append([row['chunk_id'], 'REPO_NOT_AVAILABLE'])
         os.chdir(starting_folder)
     write_file(data, df, failed_chunks)
 
