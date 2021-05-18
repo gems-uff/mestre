@@ -116,3 +116,28 @@ def scatter_by_category(columns, df, category, number_columns=2):
         else:
             j+=1
     plt.tight_layout()
+
+# about the density function value being greater than 1:
+#   https://stats.stackexchange.com/questions/4220/can-a-probability-distribution-value-exceeding-1-be-ok
+def density_by_category(columns, df, category, number_columns):
+    sns.set(font_scale=1)
+    i = j = 0
+    cols = number_columns
+    rows = math.ceil(len(columns)/cols)
+    fig = plt.figure(figsize=get_figure_size(len(columns), number_columns))
+    gs = fig.add_gridspec(rows, cols)
+    g = df.groupby(category)
+    for column in columns:
+        ax = fig.add_subplot(gs[i, j])
+        for group in g.groups.keys():
+            group_values = g.get_group(group)
+            sns.kdeplot(data=group_values[column], label=group, ax=ax, shade=True)
+        if j == cols-1:
+            j = 0
+            i+=1
+        else:
+            j+=1
+    ax = fig.get_axes()[0]
+    ax.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
+            ncol=2, mode="expand", borderaxespad=0.)    
+    plt.tight_layout()
