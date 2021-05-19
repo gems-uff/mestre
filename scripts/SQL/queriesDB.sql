@@ -53,7 +53,10 @@ select
 	inner join revision r on
 		cf.revision_id = r.id
 	where
-		r.project_id = p.id) as chunks
+		r.project_id = p.id and
+		cf.filetype='java' and 
+		p.fork = false and
+		p.analyzed = true ) as chunks
 from
 	project p
 where
