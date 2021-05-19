@@ -149,3 +149,13 @@ Output data is exported to a csv file (../data/selected_dataset.csv)
 Script for transforming the language constructs from each chunk into a boolean attribute (one column per construct).
 
 Output data is exported to a csv file (../data/selected_dataset2.csv).
+
+---
+
+## process_projects_dataset.py
+
+This script takes the csv files (../data/selected_dataset2.csv) and (../data/chunk_authors.csv) as input.
+
+It splits the dataset into training/validation (80% of the chunks) and test (20% of the chunks) parts. It also creates the boolean attribute author columns, creating one column for each author that participated in a conflicting chunk of that project. For each chunk, a value of 1 is assigned for the author column if it has participated in the conflict and a value of 0 is assigned otherwise.
+
+The outputs of this script are two csv files for each project in the dataset, which are put into (../data/projects). One csv file contains the training dataset (../data/projects/projectowner_projectname-training.csv) and the other contains the test dataset (../data/projects/projectowner__projectname-test.csv) for each project. Two general csv files are also created containing the attributes for all chunks from all projects. One is (../data/dataset-training.csv) and the other is (../data/dataset-test.csv).
