@@ -57,32 +57,32 @@ def getChunkStartPosition(beginLine, fileSize): # return the quarter in which th
     else:
         return 4
     
-def reset():
+def reset(path):
     command = "git reset --hard"
-    output = execute_command(command)
+    output = execute_command(command, path)
     if "HEAD is now at" in output.strip():
         return True
     return False
 
-def checkout(sha):
-    if reset():
+def checkout(sha, path):
+    if reset(path):
         command = f"git checkout {sha}"
-        output = execute_command(command)
+        output = execute_command(command, path)
         if "HEAD is now at" in output.strip():
             return True
     return False
 
-def merge(left_sha, right_sha):
-    if checkout(left_sha):
+def merge(left_sha, right_sha, path):
+    if checkout(left_sha, path):
         command = f"git merge {right_sha}"
-        output = execute_command(command)
+        output = execute_command(command, path)
         return True
     return False
 
-def execute_command(command):
+def execute_command(command, path):
     try:
         my_env = os.environ.copy()
-        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env, encoding="latin-1")
+        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env, cwd=path, encoding="latin-1")
         return result
     except subprocess.CalledProcessError as e:
         pass
@@ -157,14 +157,17 @@ starting_folder = pathlib.Path(__file__).parent.absolute()
 print("Processing start at %s" % (datetime.datetime.now()))
 grouped_df = df.groupby('project')
 for group_name, df_group in grouped_df:
+    print(f"{format(datetime.datetime.now())} ### Processing project {group_name}.", flush=True)
     for index, row in df_group.iterrows():
         chunk_count+=1
         project_folder = f"{configs.REPOS_PATH}/{row['project']}"
+        print(f"{format(datetime.datetime.now())} ### Processing chunk {row['chunk_id']} from project {group_name}.", flush=True)
         if os.path.exists(project_folder):
             row2 = []
-            file_path = row['path'].replace(row['project']+"/", '')
-            os.chdir(project_folder)
-            if merge(row['leftsha'], row['rightsha']):
+            file_path = row['path'].replace(row['project']+'/', '', 1)
+            file_path = f"{project_folder}/{file_path}"
+            # os.chdir(project_folder)
+            if merge(row['leftsha'], row['rightsha'], project_folder):
                 beginLine, endLine = database.get_conflict_position(row['chunk_id'])
                 sha = row['sha']
                 repoName = row['project']
@@ -198,7 +201,7 @@ for group_name, df_group in grouped_df:
                     failed_chunks.append([row['chunk_id'], 'INVALID_FILE'])
                 
                 #print('{} --- {:.2f}% done... Requests remaining: {}'.format(datetime.datetime.now(),percentage, requestsRemaining), end="\r")
-                print("chunk_id: %d project: %s LeftCC: %d  RightCC: %d  FileCC: %d Chunk Absolute size: %d  Relative size: %.2f   fileSize: %.2f   #Position: %d  "% (row['chunk_id'], row['project'], leftCC, rightCC, fileCC, chunkAbsSize, chunkRelSize, fileSize, chunkPosition), flush=True)
+                # print("chunk_id: %d project: %s LeftCC: %d  RightCC: %d  FileCC: %d Chunk Absolute size: %d  Relative size: %.2f   fileSize: %.2f   #Position: %d  "% (row['chunk_id'], row['project'], leftCC, rightCC, fileCC, chunkAbsSize, chunkRelSize, fileSize, chunkPosition), flush=True)
             else:
                 failed_chunks.append([row['chunk_id'], 'CANT_MERGE'])
             if(counter >= print_every):
