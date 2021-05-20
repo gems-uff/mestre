@@ -7,40 +7,41 @@ import sys
 import pathlib
 from datetime import datetime
 import re
+import blame_parser
 
 starting_folder = ''
 
 # get commit message for a commit:
     # git show -s --format=%B commit_SHA
-def get_commit_message(commit_SHA):
+def get_commit_message(commit_SHA, path):
     command = f'git show -s --format=%B {commit_SHA}'
-    return execute_command(command).strip()
+    return execute_command(command, path).strip()
 
-def reset():
+def reset(path):
     command = "git reset --hard"
-    output = execute_command(command)
+    output = execute_command(command, path)
     if "HEAD is now at" in output.strip():
         return True
     return False
 
-def checkout(sha):
-    if reset():
+def checkout(sha, path):
+    if reset(path):
         command = f"git checkout {sha}"
-        output = execute_command(command)
+        output = execute_command(command, path)
         if "HEAD is now at" in output.strip():
             return True
     return False
 
-def merge(left_sha, right_sha):
-    if checkout(left_sha):
+def merge(left_sha, right_sha, path):
+    if checkout(left_sha, path):
         command = f"git merge {right_sha}"
-        output = execute_command(command)
+        output = execute_command(command, path)
         return True
     return False
         
-def blame(file_path, line_start, line_end):
-    command = f"git blame --show-email -L {line_start},{line_end} {file_path}"
-    return execute_command(command)
+def blame(file_path, line_start, line_end, path):
+    command = f"git blame --show-email -L {line_start+1},{line_end} {file_path}"
+    return execute_command(command, path)
 
 def show_file_lines(file_path, start, end):
     lines = []
@@ -53,42 +54,33 @@ def show_file_lines(file_path, start, end):
 # redo the merge
 # git blame the conflicted file
 # inspect the result
-def get_chunks_author(file_path, line_start, line_end, line_separator, merge_base):
-    blame_output_left = blame(file_path, line_start, line_separator)
+def get_chunks_author(file_path, line_start, line_end, line_separator, merge_base, path):
+    blame_output_left = blame(file_path, line_start, line_separator, path)
     # print(f'blame left:  \n {blame_output_left}')
     authors_left = extract_authors(blame_output_left)
     if len(authors_left) == 0:
-        authors_left = get_empty_chunk_authors(merge_base, line_start, line_separator, file_path)
+        authors_left = get_empty_chunk_authors(merge_base, line_start, line_separator, file_path, path)
     # print(f'authors_left: {authors_left}')
     # print('------------------')
-    blame_output_right = blame(file_path, line_separator+1, line_end)
+    blame_output_right = blame(file_path, line_separator, line_end, path)
     # print(f'blame right: \n {blame_output_right}')
     authors_right = extract_authors(blame_output_right)
     if len(authors_right) == 0:
-        authors_right = get_empty_chunk_authors(merge_base, line_separator+1, line_end, file_path)
+        authors_right = get_empty_chunk_authors(merge_base, line_separator+1, line_end, file_path, path)
     # print(f'authors_right: {authors_right}')
     return authors_left, authors_right
         
 
 def extract_authors(blame_output):
     authors = {}
-    lines = blame_output.split('\n')
-    insideChunk = False
-    # print('------------------------ AAA')
+    lines = blame_parser.Blame(blame_output.split('\n')).lines
     for line in lines:
-        # print(f'line: {line}')
-        if '<<<<<<<' in line or '=======' in line:
-            insideChunk = True
-        elif insideChunk:
-            if '(' in line:
-                line_parts = line.strip().split('(')[1].split()
-                # print(line_parts)
-                if(line_parts != []):
-                    author = line_parts[0].replace('<','').replace('>','').replace('(','')
-                    if author in authors:
-                        authors[author]['modified']+=1
-                    else:
-                        authors[author]={'modified': 1, 'deleted': 0, 'moved/renamed':False}
+        author = line.author
+        if author != "not.committed.yet":
+            if author in authors:
+                authors[author]['modified']+=1
+            else:
+                authors[author]={'modified': 1, 'deleted': 0, 'moved/renamed':False}
     return authors
 
 
@@ -111,9 +103,10 @@ def extract_authors(blame_output):
 # regex for matching the line information from difflame:
 #   (-|\+|\s)?\S{8} \(<(.*?)>\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\s+(\d+)?\s+(\d+)?
 # returns authors who participated in the empty chunk
-def get_empty_chunk_authors(merge_base_sha, line_start, line_end, file_path):
-    command = f"./{starting_folder}/difflame.py {merge_base_sha} -e -- {file_path}"
-    output = execute_command(command).split('\n')
+def get_empty_chunk_authors(merge_base_sha, line_start, line_end, file_path, path):
+    global starting_folder
+    command = f"{starting_folder}/difflame.py {merge_base_sha} -e -- {file_path}"
+    output = execute_command(command, path).split('\n')
     pattern = re.compile(r"(-|\+|\s)?\S{8} \(<(.*?)>\s+\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\s+(\d+)?\s+(\d+)?\)")
     start = False
     authors = {}
@@ -143,11 +136,11 @@ def get_empty_chunk_authors(merge_base_sha, line_start, line_end, file_path):
 
     return authors
 
-def execute_command(command):
+def execute_command(command, path):
     try:
         my_env = os.environ.copy()
         # print(command)
-        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env, encoding="latin-1")
+        result = subprocess.check_output([command], stderr=subprocess.STDOUT, text=True, shell=True, env=my_env, cwd=path, encoding="latin-1")
         # print(result)
         return result
     except subprocess.CalledProcessError as e:
@@ -157,6 +150,7 @@ def execute_command(command):
 
 def main():
     df = pd.read_csv(configs.INITIAL_DATASET_PATH)
+    global starting_folder
     starting_folder = pathlib.Path(__file__).parent.absolute()
     data = []
     columns = ["chunk_id", "left_size", "right_size", "authors_left", "authors_right"]
@@ -170,25 +164,24 @@ def main():
         right_sha = row['rightsha']
         project = row['project']
         merge_base = row['basesha']
-        file_path = row['path'].replace(f"{project}/", "")
         line_start = row['line_start']
         line_end = row['line_end']
         line_separator = row['line_separator']
         project_folder = f"{configs.REPOS_PATH}/{project}"
+        file_path = row['path'].replace(f"{project}/", "", 1)
         if os.path.exists(project_folder):
-            os.chdir(project_folder)
-            if merge(left_sha, right_sha):
+            if merge(left_sha, right_sha, project_folder):
                 # print('=============================')
-                # print(f"{row['chunk_id']}: {project} {row['sha']} {file_path} ")
+                # print(f"{row['chunk_id']}: {project} {row['sha']} {file_path} {line_start}-{line_end}")
+                # input()
                 # print('--------WHOLE CONFLICT----------')
-                # show_file_lines(f'{os.getcwd()}/{file_path}', line_start, line_end)
+                # show_file_lines(f'{project_folder}/{file_path}', line_start, line_end)
                 # print('------------------')
                 left_size = line_separator - line_start - 1
                 right_size = line_end - line_separator - 1
-                authors_left_dict, authors_right_dict = get_chunks_author(file_path, line_start, line_end, line_separator, merge_base)
+                authors_left_dict, authors_right_dict = get_chunks_author(file_path, line_start, line_end, line_separator, merge_base, project_folder)
                 data.append([row['chunk_id'], left_size, right_size, authors_left_dict, authors_right_dict])
                 # input()
-        os.chdir(starting_folder)
         if current_index % save_every == 0:
             pd.DataFrame(data, columns=columns).to_csv(f"{configs.DATA_PATH}/chunk_authors.csv", index=False)        
     pd.DataFrame(data, columns=columns).to_csv(f"{configs.DATA_PATH}/chunk_authors.csv", index=False)
