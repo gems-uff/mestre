@@ -70,14 +70,12 @@ def write_list_to_file(content, file_name):
 
 def main():
     df = pd.read_csv(configs.INITIAL_DATASET_PATH, header=0)
-    new_rows = []
     count = 0
     print('Analyzing...')
     for index, row in df.iterrows():
         print(f"{time.ctime()} #### {(index/len(df) * 100):.2f}%")
         if(row['developerdecision'] == 'Concatenation'):
             count+=1
-            
             chunk_id = row['chunk_id']
             # print(chunk_id)
             conflict = database.get_conflict(chunk_id)
@@ -102,16 +100,12 @@ def main():
             write_list_to_file(solution, 'solution')
             concatenation_type = execute_command('java -jar classifyConcatenation.jar v1 v2 context1 context2 solution')
             #print(f"{chunk_id}: {concatenation_type}")
-            row['developerdecision'] = concatenation_type.strip()
+            df.at[index, 'developerdecision'] = concatenation_type.strip()
             os.remove("v1")
             os.remove("v2")
             os.remove("context1")
             os.remove("context2")
             os.remove("solution")
-            
-        new_rows.append(row)
-        
-    new_df = pd.DataFrame(new_rows, columns=df.columns)
-    new_df.to_csv(configs.LABELLED_DATASET_PATH, index=None)
+    df.to_csv(configs.LABELLED_DATASET_PATH, index=None)
 
 main()
