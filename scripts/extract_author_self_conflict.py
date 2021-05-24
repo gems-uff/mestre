@@ -12,7 +12,7 @@ def get_self_conflict_perc(authors_left, authors_right):
         right.add(author)
     return len(left.intersection(right)) / len(left.union(right))
 
-df = pd.read_csv("../data/chunk_authors_v1.csv")
+df = pd.read_csv("../data/chunk_authors.csv")
 selected = df[(df['authors_left'] != '{}') & (df['authors_right'] != '{}')]
 data = []
 current_index = 0
