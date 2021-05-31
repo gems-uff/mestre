@@ -159,3 +159,17 @@ This script takes the csv files (../data/selected_dataset2.csv) and (../data/chu
 It splits the dataset into training/validation (80% of the chunks) and test (20% of the chunks) parts. It also creates the boolean attribute author columns, creating one column for each author that participated in a conflicting chunk of that project. For each chunk, a value of 1 is assigned for the author column if it has participated in the conflict and a value of 0 is assigned otherwise.
 
 The outputs of this script are two csv files for each project in the dataset, which are put into (../data/projects). One csv file contains the training dataset (../data/projects/projectowner_projectname-training.csv) and the other contains the test dataset (../data/projects/projectowner__projectname-test.csv) for each project. Two general csv files are also created containing the attributes for all chunks from all projects. One is (../data/dataset-training.csv) and the other is (../data/dataset-test.csv).
+
+---
+
+## github_api_data_preprocess.py
+
+This script takes these CSV files as input:
+
+- ../data/number_conflicting_chunks.csv
+- ../data/number_chunks__updated_repos.csv
+- ../data/projects_data_from_github_api.csv
+
+<!-- TODO some steps on this script to correct the number of chunks may be removed later, to make the script clearer.-->
+This script joins the data about projects (collected from GitHub API) with the data of the number of chunks per project (extracted from Ghiotto's database) and the data of the new *owner/names* of the projects, as well the projects not found by the API.
+Finally it saves the output to file [../data/api_data.csv](../data/api_data.csv).
