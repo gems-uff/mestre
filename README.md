@@ -92,6 +92,12 @@ Reproduce the scripts in the following order:
       <td>Two csv files for each selected project containing all extracted attributes. Two csv files containing all extracted attributes for all projects.</td>
       <td>Splits the dataset into training/validation (80%) and test (20%) parts. Creates the boolean attribute for authors in each selected project. Details can be viewed in this <a href="https://github.com/gems-uff/conflict-resolution-mining/tree/main/scripts#process_projects_datasetpy">link</a></td>
     </tr>
+    <tr>
+      <td>github_api_data_preprocess.py</td>
+      <td>./data/number_conflicting_chunks.csv, ./data/number_chunks__updated_repos.csv, ./data/projects_data_from_github_api.csv</td>
+      <td>./data/api_data.csv</td>
+      <td>This script joins the data about projects (collected from GitHub API) with the data of the number of chunks per project (extracted from Ghiotto's database) and the data of the new owner/names of the projects, as well the projects not found by the API.</td>
+    </tr>
   </tbody>
 </table>
 
