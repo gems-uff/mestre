@@ -20,27 +20,48 @@ Extracts the file (../data/INITIAL_DATASET.csv) from the conflicts database.
 
 ---
 
+## clone_projects.py
+
+Clones the projects contained in the dataset file (../data/INITIAL_DATASET.csv).
+Cloned projects are put into ../repos. This folder will be called "repos folder".
+
+---
+
 ## concatenation_relabel.py
 
-Takes as input a csv file (../data/INITIAL_DATASET.csv) containing conflicting merge scenarios. It is processed to relabel all scenarios resolved with the *Concatenation* strategy into *ConcatenationV1V2* or *ConcatenationV2V1*. The result is stored into a new csv file (../data/LABELLED_DATASET.csv).
+Takes as input a csv file (../data/INITIAL_DATASET.csv) containing conflicting merge scenarios and the conflicts database. It is processed to relabel all scenarios resolved with the *Concatenation* strategy into *ConcatenationV1V2* or *ConcatenationV2V1*. The result is stored into a new csv file (../data/LABELLED_DATASET.csv).
 
 This script uses the program [classifyConcatenation.jar](classifyConcatenation.jar) to perform the relabelling and the script database.py to query conflicts information from the database.
 
 ---
 
-## clone_projects.py
-
-Clones the projects contained in the dataset file (../data/INITIAL_DATASET.csv).
-
----
-
 ## execute_mac_tool.py
 
-Executes the a [modified version](https://github.com/helenocampos/macTool) of the [macTool](https://github.com/catarinacosta/macTool) to extract some merge attributes from the repositories. Output files are put into ../data/macTool_output.
+Input: ../data/INITIAL_DATASET.csv, repos folder
+
+Executes the a [modified version](https://github.com/helenocampos/macTool) of the [macTool](https://github.com/catarinacosta/macTool) to extract the following attributes from the repositories: "Branching time", "Merge isolation time", "Devs 1", "Devs 2", "Different devs", "Same devs",	"Devs intersection", "Commits 1", "Commits 2", "Changed files 1", "Changed files 2", "Changed files intersection". 
+
+It generates two csv files for each analyzed project. These files are put into ../data/macTool_output. In addition, it also generates the file (../data/macTool_output.csv) containing the extracted information for all conflicting chunks.
 
 --- 
 
+## collect_merge_type.py
+
+This script takes the csv file (../data/macTool_output.csv) as input.
+
+It process each conflicting chunk in the macTool_output.csv file to extract two boolean attribute columns: has_branch_merge_message_indicator and has_multiple_devs_on_each_side.
+
+The has_branch_merge_message_indicator column has a value equal to 1 when the conflicting chunk occurred in a merge commit that has a message satisfying a regular expression that indicates a branch merge. Otherwise the value is 0.
+
+The has_multiple_devs_on_each_side column has a value equal to 1 when the conflicting chunk occurred in a merge commit with more than one unique developer on each side of the merge. Otherwise the value is 0.
+
+The output of this script is the csv file (../data/merge_types_data.csv), containing the two extracted attributes and all data the information that was necessary to calculate it (number of devs on each side and the merge commit message).
+
+---
+
 ## collect_attributes.py
+
+Takes as input (../data/INITIAL_DATASET.csv) and the repos folder.
 
 Script for collecting the following attributes: number of lines added and removed by left and right (left_lines_added, left_lines_removed, right_lines_added, right_lines_removed); conclusion delay in days, calculated by the difference between the dates of the parent commits (conclusion_delay); number of occurrences of keywords in the commit messages of commits involved in a merge (keyword_fix, keyword_bug, keyword_feature, keyword_improve, keyword_document, keyword_refactor,	keyword_update,	keyword_add, keyword_remove, keyword_use, keyword_delete, keyword_change).
 
@@ -50,6 +71,8 @@ Collected data are put into a csv file (../data/collected_attributes1.csv).
 
 ## collect_attributes_db.py
 
+Takes as input (../data/INITIAL_DATASET.csv), the conflicts database, and the repos folder.
+
 Script for collecting the following attributes: cyclomatic complexity (left and right versions of the conflicting chunk and for the whole conflicted file); chunk size (absolute and relative to the file size); conflicted file size; chunk position in the file.
 
 Collected data are put into a csv file (../data/collected_attributes2.csv).
@@ -58,11 +81,13 @@ Collected data are put into a csv file (../data/collected_attributes2.csv).
 
 ## configs.py
 
-Stores configs such as repos folder path and dataset path.
+Stores paths to files in this project.
 
 ---
 
 ## collect_chunk_authors.py
+
+Takes as input (../data/INITIAL_DATASET.csv) and the repos folder.
 
 This script extracts how many lines each author contributed to a conflicting chunk. 
 
@@ -116,19 +141,24 @@ When we have a conflict chunk where one of its sides is empty, it means that som
 
 Some attempts were made to allow the extraction of deleted lines for all cases, but with no success. Some of the attempts were kept in the folder "unused_scripts" for reference in the future.
 
-The output of this script is a csv file that is put into data/chunk_authors.csv.
+The output of this script is a csv file that is put into ../data/chunk_authors.csv.
 
 ---
 
 ## extract_author_self_conflict.py
 
-Calculates the self conflict percentage metric for each chunk.
+Takes as input the file (../data/chunk_authors.csv).
+
+Calculates the self conflict percentage metric for each conflicting chunk.
 
 Output data is exported to a csv file (../data/authors_self_conflicts.csv).
+
 
 ---
 
 ## assemble_dataset.py
+
+Takes as input the following files: (../data/merge_types_data.csv), (../data/authors_self_conflicts.csv), (../data/collected_attributes1.csv), (../data/collected_attributes2.csv), and (../data/macTool_output.csv).
 
 Merges the different csv data files with collected attributes into a single csv file.
 
@@ -138,13 +168,17 @@ Output data is exported to a csv file (../data/dataset.csv).
 
 ## select_projects.py
 
-Select chunks from projects based on a given criteria.
+Takes as input the files: (../data/dataset.csv), (../data/number_conflicting_chunks.csv), and (../data/LABELLED_DATASET.csv).
 
-Output data is exported to a csv file (../data/selected_dataset.csv)
+Select chunks from projects based on a given criteria (currently number of conflicting chunks >= 1000).
+
+Output data is exported to a csv file (../data/selected_dataset.csv).
 
 ---
 
 ## transform_boolean_attributes.py
+
+Takes as input the file: (../data/selected_dataset.csv).
 
 Script for transforming the language constructs from each chunk into a boolean attribute (one column per construct).
 
@@ -158,7 +192,7 @@ This script takes the csv files (../data/selected_dataset2.csv) and (../data/chu
 
 It splits the dataset into training/validation (80% of the chunks) and test (20% of the chunks) parts. It also creates the boolean attribute author columns, creating one column for each author that participated in a conflicting chunk of that project. For each chunk, a value of 1 is assigned for the author column if it has participated in the conflict and a value of 0 is assigned otherwise.
 
-The outputs of this script are two csv files for each project in the dataset, which are put into (../data/projects). One csv file contains the training dataset (../data/projects/projectowner_projectname-training.csv) and the other contains the test dataset (../data/projects/projectowner__projectname-test.csv) for each project. Two general csv files are also created containing the attributes for all chunks from all projects. One is (../data/dataset-training.csv) and the other is (../data/dataset-test.csv).
+The outputs of this script are two csv files for each project in the dataset, which are put into (../data/projects). One csv file contains the training dataset (../data/projects/projectowner_projectname-training.csv) and the other contains the test dataset (../data/projects/projectowner__projectname-test.csv) for each project. Two general csv files are also created containing the attributes for all chunks from all selected projects. One is (../data/dataset-training.csv) and the other is (../data/dataset-test.csv).
 
 ---
 
