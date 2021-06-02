@@ -27,7 +27,7 @@ def write_failed_chunks(failed):
             file.write(f"{failed_chunk[0]}:{failed_chunk[1]}\n")
 
 def main():
-    df = pd.read_csv(f"{configs.DATA_PATH}/dataset.csv")
+    df = pd.read_csv(f"{configs.DATA_PATH}/macTool_output.csv")
     data = []
     chunks_failed = []
     current_index = 0
@@ -39,7 +39,7 @@ def main():
         chunk_id = row['chunk_id']
         project = row['project']
         project_folder = f"{configs.REPOS_PATH}/{project}"
-        file_path = row['path'].replace(f"{project}/", "", 1)
+        
         if os.path.exists(project_folder):
             devs1 = row['Devs 1']
             devs2 = row['Devs 2']
