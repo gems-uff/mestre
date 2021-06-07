@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 def get_df_count(dataframe, precedent, consequent):
     df_count = pd.crosstab(dataframe[precedent], dataframe[consequent])
@@ -95,3 +96,19 @@ def get_discretized_df(df, columns):
                         categories=labels,
                         ordered=True)
     return discretized, labels
+
+def get_log_discretized_value(value):
+    if np.isnan(value):
+        return int(-2)
+    value = round(value)
+    if value == 0:
+        return int(-1)
+    else:
+        return int(np.round(np.log2(value)))
+
+# returns a discretized dataframe for numerical (integer) columns
+def get_discretized_df_new(df, columns):
+    discretized = df[['chunk_id', 'developerdecision']].copy()
+    for column in columns:
+        discretized[column] = df[column].map(get_log_discretized_value)
+    return discretized

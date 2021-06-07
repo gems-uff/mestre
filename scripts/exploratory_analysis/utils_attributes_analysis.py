@@ -20,7 +20,9 @@ def get_figure_size(number_graphs, graphs_per_line):
     plot_aspect_ratio= float(width)/float(height)
     return (fig_height  * plot_aspect_ratio, fig_height )
 
-def count_plot_categorical(columns, df, grid_plots_per_line=2, log=False, log_base=10):
+# this version considers the discretization based on log 10 values (using strings)
+# e.g. Tens, Hundreds, and so on.
+def count_plot_categorical(columns, df, labels_order, grid_plots_per_line=2, log=False, log_base=10):
     sns.set(font_scale=1)
     N = len(columns)
     cols = grid_plots_per_line
@@ -37,13 +39,41 @@ def count_plot_categorical(columns, df, grid_plots_per_line=2, log=False, log_ba
             fontweight='light',
             fontsize='medium'  
         )
-        labels = list(df[column].value_counts().reset_index(name="count").query("count > 0")["index"])
         count = df[column].value_counts().reset_index(name="count").query("count > 0")
+        count['index'] = count['index'].astype("category")
+        count['index'].cat.set_categories(labels_order, inplace=True)
+        count = count.sort_values(['index'])
         chart = count.plot(kind='bar', color='gray', legend=None, ax=ax)
+        labels = list(count["index"])
         chart.set_xticklabels(labels, rotation=45, horizontalalignment='right')
         ax.set_title(column)
         ax.set_ylabel(f'Count')
         if log:
+            plt.yscale("log", base=log_base)
+    fig.tight_layout()
+
+# this version considers the discretization based on log2 values.
+def count_plot_categorical_new(columns, df, grid_plots_per_line=2, log=False, log_base=10):
+    sns.set(font_scale=1)
+    N = len(columns)
+    cols = grid_plots_per_line
+    rows = int(math.ceil(N / cols))
+    fig = plt.figure(figsize=get_figure_size(len(columns), grid_plots_per_line))
+    gs = gridspec.GridSpec(rows, cols)
+    df = df.copy()
+    for n in range(N):
+        column = columns[n]
+        ax = fig.add_subplot(gs[n])
+        count = df[column].value_counts().reset_index(name="count").query("count > 0")
+        count = count.sort_values('index', ascending=True)
+        count.loc[count['index']==-2, 'index'] = 'NA'
+        count.loc[count['index']==-1, 'index'] = 'Zero'
+        chart = count.plot(kind='bar', x='index', y='count', color='gray', legend=None, ax=ax)
+        ax.set_title(column)
+        ax.set_ylabel(f'Count')
+        ax.set_xlabel(f'log2({column})')
+        if log:
+            ax.set_ylabel(f'Log{log_base}(Count)')
             plt.yscale("log", base=log_base)
     fig.tight_layout()
 
@@ -141,3 +171,66 @@ def density_by_category(columns, df, category, number_columns):
     ax.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc='lower left',
             ncol=2, mode="expand", borderaxespad=0.)    
     plt.tight_layout()
+
+def relative_percentage_by_group_plot(columns, df, group_name, log=False):
+    sns.set_context("paper", font_scale=1.5)
+    df = df.copy()
+    for column in columns:
+        x,y = column, group_name
+        df1 = df.groupby(x, observed=True)[y].value_counts(normalize=True)
+        df1 = df1.mul(100)
+        df1 = df1.rename('percent').reset_index()
+
+        if log:
+            df1.loc[df1[column]==-2, column] = 'NA'
+            df1.loc[df1[column]==-1, column] = 'Zero'
+
+        g = sns.catplot(x=x,y='percent',hue=y,kind='bar',data=df1, height=6, aspect = 15/6)
+        g.ax.set_ylim(0,100)
+        g.ax.set_title(f"Relative distribution per discretized level of {column} attribute")
+        
+        if not log:
+            for p in g.ax.patches:
+                txt = str(p.get_height().round(2)) + '%'
+                txt_x = p.get_x() 
+                txt_y = p.get_height()
+                if not math.isnan(txt_y):
+                    g.ax.text(txt_x,txt_y,txt)
+        else:
+            g.ax.set_xlabel(f"log2({column})")
+
+        plt.tight_layout()
+        plt.show()
+
+def count_plot_by_category(columns, df, group_name, log=False):
+    sns.set(font_scale=1)
+    sns.set_context("paper", font_scale=1.5)
+    df1 = df.copy()
+    for column in columns:
+        plt.figure(figsize=(10,6))
+        
+        if log:
+            values = list(df1[column].unique())
+            if -2 in values: values.remove(-2)
+            if -1 in values: values.remove(-1)
+            
+            values = sorted(values)
+            values.insert(0, 'NA')
+            values.insert(1, 'Zero')
+            df1.loc[df1[column]==-2, column] = 'NA'
+            df1.loc[df1[column]==-1, column] = 'Zero'
+
+            df1[column] = pd.Categorical(df1[column], 
+                categories=values, ordered=True)
+        
+        g = sns.countplot(x=column, hue=group_name, data=df1)
+        g.set_yscale("log")
+        g.set_title(f"Count distribution per discretized level of {column} attribute")
+        g.set_xticklabels(g.get_xticklabels(), rotation=40)
+        plt.legend(bbox_to_anchor=(1.05, 0.7), loc='upper left')
+        
+        if log:
+            g.set_xlabel(f"log2({column})")
+
+        plt.tight_layout()
+        plt.show()
