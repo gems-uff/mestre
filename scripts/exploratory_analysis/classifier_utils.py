@@ -53,7 +53,9 @@ def get_majority_class_percentage(dataset, class_name):
         return float('nan')
     
 def get_normalized_improvement(accuracy, baseline_accuracy):
-    return ((accuracy / baseline_accuracy) - 1) * 100
+    if accuracy > baseline_accuracy:
+        return (accuracy - baseline_accuracy) / (1 - baseline_accuracy)
+    return (accuracy - baseline_accuracy) / baseline_accuracy
 
 def get_project_class_distribution(project, normalized=True, drop_na=True):
     developer_decisions = ['Version 1', 'Version 2', 'Combination', 'ConcatenationV1V2', 
