@@ -5,3 +5,6 @@ scripts/github_keys
 data/**
 .DS_Store
 .ipynb_checkpoints
+.idea
+.vscode
+venv
