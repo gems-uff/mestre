@@ -29,7 +29,7 @@ class ProjectsResults:
         results_df = []
         for project_name, project_results in self.results.items():
             results_df.append(project_results.results)
-        df =  pd.concat(results_df, ignore_index=True)
+        df = pd.concat(results_df, ignore_index=True)
         df = df.sort_values(sort_by, ascending=False)
         if include_overall:
             df = pd.concat([df, get_overall_accuracy(df)], ignore_index=True)
