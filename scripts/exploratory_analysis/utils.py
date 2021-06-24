@@ -91,7 +91,8 @@ def get_discretized_df(df, columns):
     discretized = df[['chunk_id', 'developerdecision']].copy()
     for column in columns:
         discretized[column] = pd.cut(df[column],
-        bins=[-1, 0, 10, 100, 1000, 10000, 100000, 1000000, 10000000, float('inf')], labels = labels)
+                                     bins=[-1, 0, 10, 100, 1000, 10000, 100000, 1000000, 10000000, float('inf')],
+                                     labels = labels)
         discretized[column] = pd.Categorical(discretized[column], 
                         categories=labels,
                         ordered=True)
