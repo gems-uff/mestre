@@ -78,31 +78,31 @@ def count_plot_categorical_new(columns, df, grid_plots_per_line=2, log=False, lo
     fig.tight_layout()
 
 def count_plot_categorical_stackedbar(columns, df, grid_plots_per_line=2, log=False, log_base=10):
-    sns.set(font_scale=1)
+    # sns.set(font_scale=1)
     N = len(columns)
-    cols = grid_plots_per_line
-    rows = int(math.ceil(N / cols))
-    fig = plt.figure(figsize=get_figure_size(len(columns), grid_plots_per_line))
-    gs = gridspec.GridSpec(rows, cols)
+    # cols = grid_plots_per_line
+    # rows = int(math.ceil(N / cols))
+    # fig = plt.figure(figsize=get_figure_size(len(columns), grid_plots_per_line))
+    # gs = gridspec.GridSpec(rows, cols)
     df = df.copy()
     for n in range(N):
         column = columns[n]
-        ax = fig.add_subplot(gs[n])
+        # ax = fig.add_subplot(gs[n])
         # count = df[column].value_counts().reset_index(name="count").query("count > 0")
         # count = count.sort_values('index', ascending=True)
         # count.loc[count['index']==-2, 'index'] = 'NA'
         # count.loc[count['index']==-1, 'index'] = 'Zero'
         # chart = count.plot(kind='bar', x='index', y='count', color='gray', legend=None, ax=ax)
 
-        df[[column, 'developerdecision']].value_counts().unstack().plot.bar(stacked=True)
+        df[[column, 'developerdecision']].value_counts().unstack().plot.bar(stacked=True, figsize=(8,6))
 
-        ax.set_title(column)
-        ax.set_ylabel(f'Count')
-        ax.set_xlabel(f'log2({column})')
-        if log:
-            ax.set_ylabel(f'Log{log_base}(Count)')
-            plt.yscale("log", base=log_base)
-    fig.tight_layout()
+        # ax.set_title(column)
+        # ax.set_ylabel(f'Count')
+        # ax.set_xlabel(f'log2({column})')
+        # if log:
+        #     ax.set_ylabel(f'Log{log_base}(Count)')
+        #     plt.yscale("log", base=log_base)
+    # fig.tight_layout()
 
 def hist_plot(columns, df, number_columns=2, log=False, log_base=10):
     sns.set(font_scale=2)
