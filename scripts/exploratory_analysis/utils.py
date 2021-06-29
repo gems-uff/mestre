@@ -113,3 +113,16 @@ def get_discretized_df_new(df, columns):
     for column in columns:
         discretized[column] = df[column].map(get_log_discretized_value)
     return discretized
+
+# returns the entropy of the classes of the column developerdecision 
+# for each value of a column
+def entropy(column, df):
+    df_label_attrib = df[['developerdecision',column]]
+    
+    attr_entropy = df_label_attrib.groupby(column)\
+        .apply(lambda x: x.value_counts(normalize=True)\
+                .map(lambda x: -1 * x * np.log2(x))\
+                .sum())\
+        .to_frame(name="entropy")
+    
+    return attr_entropy
