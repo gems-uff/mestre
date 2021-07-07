@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, GridSearchCV
 import numpy as np
 from sklearn.metrics import classification_report
 from sklearn.model_selection import cross_val_predict
@@ -285,3 +285,22 @@ def plot_classification_report(classification_report, title='Classification repo
     figure_height = len(class_names) + 7
     correct_orientation = False
     heatmap(np.array(plotMat), title, xlabel, ylabel, xticklabels, yticklabels, figure_width, figure_height, correct_orientation, cmap=cmap)
+
+
+def grid_search(project, estimator, parameters, non_features_columns):
+    proj = project.replace("/", "__")
+    proj_dataset = f"../../data/projects/{proj}-training.csv"
+    df_proj = pd.read_csv(proj_dataset)
+    df_clean = df_proj.dropna()
+    # majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
+    y = df_clean["developerdecision"].copy()
+    df_clean_features = df_clean.drop(columns=['developerdecision']) \
+                                .drop(columns=non_features_columns)
+    features = list(df_clean_features.columns)
+    X = df_clean_features[features]
+    clf = GridSearchCV(estimator, parameters, verbose=3, cv=10)
+    clf.fit(X, y)
+    print('\n', "Best params and score:", clf.best_params_, clf.best_score_, '\n',
+          # clf.cv_results_,
+          sep='\n')
+    return clf.cv_results_
