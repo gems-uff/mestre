@@ -298,7 +298,7 @@ def grid_search(project, estimator, parameters, non_features_columns):
                                 .drop(columns=non_features_columns)
     features = list(df_clean_features.columns)
     X = df_clean_features[features]
-    clf = GridSearchCV(estimator, parameters, verbose=3, cv=10)
+    clf = GridSearchCV(estimator, parameters, verbose=1, cv=10)
     clf.fit(X, y)
     print('\n', "Best params and score:", clf.best_params_, clf.best_score_, '\n',
           # clf.cv_results_,
