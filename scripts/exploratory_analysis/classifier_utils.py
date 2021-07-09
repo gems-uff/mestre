@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.model_selection import cross_val_score, GridSearchCV
+from sklearn.model_selection import cross_val_score, GridSearchCV, validation_curve
 import numpy as np
 from sklearn.metrics import classification_report
 from sklearn.model_selection import cross_val_predict
@@ -292,15 +292,62 @@ def grid_search(project, estimator, parameters, non_features_columns):
     proj_dataset = f"../../data/projects/{proj}-training.csv"
     df_proj = pd.read_csv(proj_dataset)
     df_clean = df_proj.dropna()
-    # majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
-    y = df_clean["developerdecision"].copy()
-    df_clean_features = df_clean.drop(columns=['developerdecision']) \
-                                .drop(columns=non_features_columns)
-    features = list(df_clean_features.columns)
-    X = df_clean_features[features]
-    clf = GridSearchCV(estimator, parameters, verbose=1, cv=10)
-    clf.fit(X, y)
-    print('\n', "Best params and score:", clf.best_params_, clf.best_score_, '\n',
-          # clf.cv_results_,
-          sep='\n')
-    return clf.cv_results_
+    print(f"Length of df_clean: {len(df_clean)}")
+    if len(df_clean) >= 10:
+        # majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
+        y = df_clean["developerdecision"].copy()
+        df_clean_features = df_clean.drop(columns=['developerdecision']) \
+                                    .drop(columns=non_features_columns)
+        features = list(df_clean_features.columns)
+        X = df_clean_features[features]
+        clf = GridSearchCV(estimator, parameters, verbose=1, cv=10)
+        clf.fit(X, y)
+        print("Best params and score:", clf.best_params_, clf.best_score_, '\n',
+              # clf.cv_results_,
+              sep='\n')
+        return clf.cv_results_
+    else:
+        return None
+
+
+def get_validation_curve(project, estimator, param_name, param_range, non_features_columns):
+    proj = project.replace("/", "__")
+    proj_dataset = f"../../data/projects/{proj}-training.csv"
+    df_proj = pd.read_csv(proj_dataset)
+    df_clean = df_proj.dropna()
+    print(f"Length of df_clean: {len(df_clean)}")
+    if len(df_clean) >= 10:
+        # majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
+        y = df_clean["developerdecision"].copy()
+        df_clean_features = df_clean.drop(columns=['developerdecision']) \
+                                    .drop(columns=non_features_columns)
+        features = list(df_clean_features.columns)
+        X = df_clean_features[features]
+        train_scores, test_scores = validation_curve(estimator, X, y, param_name=param_name, param_range=param_range, cv=10)
+
+        train_scores_mean = np.mean(train_scores, axis=1)
+        train_scores_std = np.std(train_scores, axis=1)
+        test_scores_mean = np.mean(test_scores, axis=1)
+        test_scores_std = np.std(test_scores, axis=1)
+
+        plt.title("Validation Curve with Random Forest Classifier")
+        plt.xlabel(param_name)
+        # plt.xticks(param_range)
+        plt.ylabel("Score")
+        plt.ylim(0.0, 1.1)
+        lw = 2
+        plt.plot(param_range, train_scores_mean, label="Training score",
+                 color="darkorange", lw=lw)
+        plt.fill_between(param_range, train_scores_mean - train_scores_std,
+                         train_scores_mean + train_scores_std, alpha=0.2,
+                         color="darkorange", lw=lw)
+        plt.plot(param_range, test_scores_mean, label="Cross-validation score",
+                 color="navy", lw=lw)
+        plt.fill_between(param_range, test_scores_mean - test_scores_std,
+                         test_scores_mean + test_scores_std, alpha=0.2,
+                         color="navy", lw=lw)
+        plt.legend(loc="best")
+        plt.show()
+    #     return train_scoreNum, test_scoreNum
+    # else:
+    #     return None
