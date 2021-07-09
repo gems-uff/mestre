@@ -315,7 +315,7 @@ def get_validation_curve(project, estimator, param_name, param_range, non_featur
     proj_dataset = f"../../data/projects/{proj}-training.csv"
     df_proj = pd.read_csv(proj_dataset)
     df_clean = df_proj.dropna()
-    print(f"Length of df_clean: {len(df_clean)}")
+    print(f"Length of df_clean: {len(df_clean)}\n")
     if len(df_clean) >= 10:
         # majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
         y = df_clean["developerdecision"].copy()
@@ -330,7 +330,8 @@ def get_validation_curve(project, estimator, param_name, param_range, non_featur
         test_scores_mean = np.mean(test_scores, axis=1)
         test_scores_std = np.std(test_scores, axis=1)
 
-        plt.title("Validation Curve with Random Forest Classifier")
+        # plt.title("Validation Curve with Random Forest Classifier")
+        plt.title(f"Validation Curve with {type(estimator).__name__}.\nProject: {project}")
         plt.xlabel(param_name)
         # plt.xticks(param_range)
         plt.ylabel("Score")
