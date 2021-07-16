@@ -101,8 +101,14 @@ Reproduce the scripts in the following order:
     <tr>
       <td>process_projects_dataset.py</td>
       <td>./data/selected_dataset2.csv, ./data/chunk_authors.csv</td>
-      <td>Two csv files (training/test) for each analyzed selected repository, .data/dataset-training.csv, .data/dataset-test.csv</td>
+      <td>Two csv files (training/test) for each analyzed selected repository put into .data/projects, .data/dataset-training.csv, .data/dataset-test.csv</td>
       <td>Splits the dataset into training/validation (80%) and test (20%) parts. Creates the boolean attribute for authors in each selected project. Details can be viewed in this <a href="https://github.com/gems-uff/conflict-resolution-mining/tree/main/scripts#process_projects_datasetpy">link</a></td>
+    </tr>
+    <tr>
+      <td>discretize_dataset.py</td>
+      <td>./data/dataset-training.csv, ./data/dataset-test.csv, ./data/projects/{project}-training.csv, ./data/projects/{project}-test.csv </td>
+      <td>Two csv files (training/test) for each analyzed selected repository put into .data/projects/discretized_log2 and .data/projects/discretized_log10, .data/dataset-training_log2.csv, .data/dataset-training_log10.csv, .data/dataset-test_log2.csv, .data/dataset-test_log10.csv</td>
+      <td>Discretizes categorical attributes from the dataset using log2 and log10 functions.</td>
     </tr>
   </tbody>
 </table>

@@ -207,3 +207,20 @@ This script takes these CSV files as input:
 <!-- TODO some steps on this script to correct the number of chunks may be removed later, to make the script clearer.-->
 This script joins the data about projects (collected from GitHub API) with the data of the number of chunks per project (extracted from Ghiotto's database) and the data of the new *owner/names* of the projects, as well the projects not found by the API.
 Finally it saves the output to file [../data/api_data.csv](../data/api_data.csv).
+
+---
+
+## discretize_dataset.py
+
+This script has the following CSV as input:
+
+- ../data/dataset-training.csv
+- ../data/dataset-test.csv
+- ../data/projects/{project}-training.csv (one for each project)
+- ../data/projects/{project}-test.csv  (one for each project)
+
+The goal of this script is to discretize the categorical attributes from the dataset. It uses log2 and log10 functions to transform the values. It outputs two csv files for each input csv. One for log2 discretization and another for log10.
+
+Resulting projects dataset is put into ../data/projects/discretized_log2 and ../data/projects/discretized_log10.
+
+The general dataset is put into ../data.
