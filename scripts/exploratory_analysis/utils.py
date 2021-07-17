@@ -99,7 +99,7 @@ def get_discretized_df(df, columns):
     return discretized, labels
 
 def get_log_discretized_value(value):
-    if np.isnan(value):
+    if np.isnan(value) or value == -1:
         return int(-2)
     value = round(value)
     if value == 0:
