@@ -1,20 +1,27 @@
 import pandas as pd
 from sklearn.model_selection import cross_val_score, GridSearchCV, validation_curve
 import numpy as np
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import cross_val_predict
 from matplotlib import pyplot as plt
 
 
 class ProjectResults:
-    def __init__(self, project_name, results, scores, scores_text):
+    def __init__(self, project_name, results, scores, scores_text, confusion_matrix, target_names):
         self.project_name = project_name
         self.results = results
         self.scores = scores
         self.scores_text = scores_text
+        self.confusion_matrix = confusion_matrix
+        self.target_names = target_names
 
     def get_scores_df(self):
         return pd.DataFrame(self.scores).transpose()
+
+    def get_confusion_matrix_df(self):
+        print('Columns = predicted label')
+        print('Rows = true label')
+        return pd.DataFrame(self.confusion_matrix, index=self.target_names, columns=self.target_names)
 
 class ProjectsResults:
     def __init__(self, algorithm, projects, non_feature_columns, drop_na=True):
@@ -108,8 +115,11 @@ def get_overall_accuracy(results):
     result = pd.DataFrame(rows, columns=results.columns)
     return result
 
-def get_prediction_scores(algorithm, X, y, target_names, output_dict=True):
+def predict(algorithm, X, y):
     y_pred = cross_val_predict(algorithm, X, y, cv=10)
+    return y_pred
+
+def get_prediction_scores(y, y_pred, target_names, output_dict=True):
     scores = classification_report(y, y_pred, target_names=target_names, digits=3, output_dict=output_dict)
     return scores
 
@@ -130,6 +140,8 @@ def evaluate_project(project, non_features_columns, algorithm, drop_na=True):
     majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
     scores = {}
     scores_text= ''
+    conf_matrix = []
+    target_names = sorted(df['developerdecision'].unique())
     if len(df_clean) >= 10:
         y = df_clean["developerdecision"].copy()
         df_clean = df_clean.drop(columns=['developerdecision'])
@@ -140,10 +152,10 @@ def evaluate_project(project, non_features_columns, algorithm, drop_na=True):
         # scores = cross_val_score(model, X, y, cv=10)
         # accuracy = scores.mean()
         # std_dev = scores.std()
-        
-        target_names = sorted(df['developerdecision'].unique())
-        scores = get_prediction_scores(algorithm, X, y, target_names)
-        scores_text = get_prediction_scores(algorithm, X, y, target_names, False)
+        y_pred = predict(algorithm, X, y)
+        scores = get_prediction_scores(y, y_pred, target_names)
+        scores_text = get_prediction_scores(y, y_pred, target_names, False)
+        conf_matrix = confusion_matrix(y, y_pred, labels=target_names)
         
         accuracy = scores['accuracy']
         precision = scores['weighted avg']['precision']
@@ -157,7 +169,7 @@ def evaluate_project(project, non_features_columns, algorithm, drop_na=True):
     results = pd.DataFrame(results, columns=['project', 'observations', 'observations (wt NaN)', 'precision', 'recall', 'f1-score', 'accuracy', 'baseline (majority)', 'improvement'])
     
     results = results.round(3)
-    return ProjectResults(project, results, scores, scores_text)
+    return ProjectResults(project, results, scores, scores_text, conf_matrix, target_names)
 
 # adapted from https://stackoverflow.com/questions/28200786/how-to-plot-scikit-learn-classification-report
 def show_values(pc, fmt="%.2f", **kw):
@@ -286,13 +298,75 @@ def plot_classification_report(classification_report, title='Classification repo
     correct_orientation = False
     heatmap(np.array(plotMat), title, xlabel, ylabel, xticklabels, yticklabels, figure_width, figure_height, correct_orientation, cmap=cmap)
 
+'''
+    Assigns gold, silver, and bronze medals for the top-3 combination of parameters in each project.
+'''
+def grid_search_all(projects, estimator, parameters, non_features_columns):
+    import itertools
+    results = {}
+    results_columns = list(parameters.keys())
+    results_columns.extend(['mean_accuracy', 'sum_accuracy', 'total_medals', 'gold_medals', 'silver_medals', 'bronze_medals'])
+    combinations = []
+
+    for combination in itertools.product(*parameters.values()):
+        row = []
+        key=''
+        for parameter_value in combination:
+            row.append(parameter_value)
+            key+=str(parameter_value)
+        row.extend([0,0,0,0,0,0])
+        combinations.append(row)
+    results = pd.DataFrame(combinations, columns=results_columns)
+        
+    for project in projects:
+        project_results = grid_search(project, estimator, parameters, non_features_columns)
+        if project_results != None:
+            df_gridsearch_dt = pd.DataFrame(project_results)\
+                .filter(regex=("param_.*|mean_test_score|std_test_score|rank_test_score"))\
+                .sort_values(by=['rank_test_score'])
+            
+            top_3 = df_gridsearch_dt[df_gridsearch_dt['rank_test_score']<=3]
+
+            for index, combination in top_3.iterrows():
+                filtered_rows = results
+                for parameter in list(parameters.keys()):
+                    parameter_key = f'param_{parameter}'
+                    combination_value = combination[parameter_key]
+                    if combination[parameter_key] == None:
+                        filtered_rows = filtered_rows[filtered_rows[parameter].isnull()]
+                    else:
+                        filtered_rows = filtered_rows[filtered_rows[parameter]==combination_value]
+
+                if len(filtered_rows) > 0:
+                    row = results.loc[filtered_rows.index]
+                    sum_accuracy = row['sum_accuracy']
+                    gold_medals = row['gold_medals']
+                    silver_medals = row['silver_medals']
+                    bronze_medals = row['bronze_medals']
+                    
+                    
+                    results.at[filtered_rows.index, 'sum_accuracy'] = sum_accuracy + combination['mean_test_score']
+                    if combination['rank_test_score'] == 1:
+                        results.at[filtered_rows.index, 'gold_medals'] = gold_medals + 1
+                    elif combination['rank_test_score'] == 2:
+                        results.at[filtered_rows.index, 'silver_medals'] = silver_medals + 1
+                    else:
+                        results.at[filtered_rows.index, 'bronze_medals'] = bronze_medals + 1
+                    results.at[filtered_rows.index, 'total_medals'] = gold_medals + silver_medals + bronze_medals + 1
+    
+    results['mean_accuracy'] = results['sum_accuracy'] / results['total_medals']
+    results = results.drop(['sum_accuracy'], axis=1)
+
+    return results
+
+
 
 def grid_search(project, estimator, parameters, non_features_columns):
     proj = project.replace("/", "__")
     proj_dataset = f"../../data/projects/{proj}-training.csv"
     df_proj = pd.read_csv(proj_dataset)
     df_clean = df_proj.dropna()
-    print(f"Length of df_clean: {len(df_clean)}")
+    # print(f"Length of df_clean: {len(df_clean)}")
     if len(df_clean) >= 10:
         # majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
         y = df_clean["developerdecision"].copy()
@@ -300,11 +374,11 @@ def grid_search(project, estimator, parameters, non_features_columns):
                                     .drop(columns=non_features_columns)
         features = list(df_clean_features.columns)
         X = df_clean_features[features]
-        clf = GridSearchCV(estimator, parameters, verbose=1, cv=10)
+        clf = GridSearchCV(estimator, parameters, verbose=0, cv=10)
         clf.fit(X, y)
-        print("Best params and score:", clf.best_params_, clf.best_score_, '\n',
+        # print("Best params and score:", clf.best_params_, clf.best_score_, '\n',
               # clf.cv_results_,
-              sep='\n')
+            #   sep='\n')
         return clf.cv_results_
     else:
         return None
