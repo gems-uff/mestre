@@ -123,6 +123,27 @@ def get_prediction_scores(y, y_pred, target_names, output_dict=True):
     scores = classification_report(y, y_pred, target_names=target_names, digits=3, output_dict=output_dict)
     return scores
 
+def compare_models(models, models_names, projects, non_features_columns):
+    models_results = []
+    for model in models:
+        models_results.append(ProjectsResults(model, projects, non_features_columns))
+    reports = []
+    for model_results in models_results:
+        reports.append(model_results.get_report_df(include_overall=True))
+    if len(reports) > 0:
+        df_result = reports[0].loc[(reports[0]['project']=='Overall')]
+        df_result['model'] = None
+        for i in range(1, len(reports)):
+            df_model_overall_report = reports[i].loc[(reports[i]['project']=='Overall')]
+            df_result = pd.concat([df_result, df_model_overall_report], ignore_index=True)
+        
+        model_index = 0
+        for index, row in df_result.iterrows():
+            df_result.at[index, 'model'] = models_names[model_index]
+            model_index+=1
+        
+        return df_result
+    
 # obs about metrics used:
 # weighted metrics: precision, recall, and f1-score
 # Calculate metrics for each label (class), and find their average weighted by support (the number of true instances for each label).
@@ -383,13 +404,64 @@ def grid_search(project, estimator, parameters, non_features_columns):
     else:
         return None
 
+def get_validation_curve_all(projects, estimator, param_name, param_range, non_features_columns):
+    train_scores_mean = []
+    train_scores_std = []
+    test_scores_mean = []
+    test_scores_std = []
+    number_projects = 0
+    for project in projects:
+        proj = project.replace("/", "__")
+        proj_dataset = f"../../data/projects/{proj}-training.csv"
+        df_proj = pd.read_csv(proj_dataset)
+        df_clean = df_proj.dropna()
+        # print(f"Length of df_clean: {len(df_clean)}\n")
+        if len(df_clean) >= 10:
+            y = df_clean["developerdecision"].copy()
+            df_clean_features = df_clean.drop(columns=['developerdecision']) \
+                                        .drop(columns=non_features_columns)
+            features = list(df_clean_features.columns)
+            X = df_clean_features[features]
+            train_scores, test_scores = validation_curve(estimator, X, y, param_name=param_name, param_range=param_range, cv=10)
 
-def get_validation_curve(project, estimator, param_name, param_range, non_features_columns):
+            train_scores_mean.append(np.mean(train_scores, axis=1).tolist())
+            train_scores_std.append(np.std(train_scores, axis=1).tolist())
+            test_scores_mean.append(np.mean(test_scores, axis=1).tolist())
+            test_scores_std.append(np.std(test_scores, axis=1).tolist())
+            number_projects+=1
+
+
+    train_scores_mean= np.mean(train_scores_mean, axis=0)
+    train_scores_std= np.mean(train_scores_std, axis=0)
+    test_scores_mean= np.mean(test_scores_mean, axis=0)
+    test_scores_std= np.mean(test_scores_std, axis=0)
+
+    plt.title(f"Accumulated Validation Curve with {type(estimator).__name__}.\n Number of projects: {number_projects}")
+    plt.xlabel(param_name)
+    plt.ylabel("Score")
+    plt.ylim(0.0, 1.1)
+    lw = 2
+    if None in param_range:
+        param_range.remove(None)
+        param_range.insert(0,-1)
+    plt.plot(param_range, train_scores_mean, label="Training score",
+                color="darkorange", lw=lw)
+    plt.fill_between(param_range, train_scores_mean - train_scores_std,
+                        train_scores_mean + train_scores_std, alpha=0.2,
+                        color="darkorange", lw=lw)
+    plt.plot(param_range, test_scores_mean, label="Cross-validation score",
+                color="navy", lw=lw)
+    plt.fill_between(param_range, test_scores_mean - test_scores_std,
+                        test_scores_mean + test_scores_std, alpha=0.2,
+                        color="navy", lw=lw)
+    plt.legend(loc="best")
+    plt.show()
+
+def plot_validation_curve(project, estimator, param_name, param_range, non_features_columns, ax):
     proj = project.replace("/", "__")
     proj_dataset = f"../../data/projects/{proj}-training.csv"
     df_proj = pd.read_csv(proj_dataset)
     df_clean = df_proj.dropna()
-    print(f"Length of df_clean: {len(df_clean)}\n")
     if len(df_clean) >= 10:
         # majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
         y = df_clean["developerdecision"].copy()
@@ -404,25 +476,47 @@ def get_validation_curve(project, estimator, param_name, param_range, non_featur
         test_scores_mean = np.mean(test_scores, axis=1)
         test_scores_std = np.std(test_scores, axis=1)
 
-        # plt.title("Validation Curve with Random Forest Classifier")
-        plt.title(f"Validation Curve with {type(estimator).__name__}.\nProject: {project}")
-        plt.xlabel(param_name)
+        ax.set_title(f"{project} \n n={len(df_clean)}", wrap=True)
+        ax.set_xlabel(param_name)
         # plt.xticks(param_range)
-        plt.ylabel("Score")
-        plt.ylim(0.0, 1.1)
+        ax.set_ylabel("Score")
+        ax.set_ylim(0.0, 1.1)
         lw = 2
-        plt.plot(param_range, train_scores_mean, label="Training score",
+        if None in param_range:
+            param_range = param_range.copy()
+            param_range.remove(None)
+            param_range.insert(0,-1)
+        ax.plot(param_range, train_scores_mean, label="Training score",
                  color="darkorange", lw=lw)
-        plt.fill_between(param_range, train_scores_mean - train_scores_std,
+        ax.fill_between(param_range, train_scores_mean - train_scores_std,
                          train_scores_mean + train_scores_std, alpha=0.2,
                          color="darkorange", lw=lw)
-        plt.plot(param_range, test_scores_mean, label="Cross-validation score",
+        ax.plot(param_range, test_scores_mean, label="Cross-validation score",
                  color="navy", lw=lw)
-        plt.fill_between(param_range, test_scores_mean - test_scores_std,
+        ax.fill_between(param_range, test_scores_mean - test_scores_std,
                          test_scores_mean + test_scores_std, alpha=0.2,
                          color="navy", lw=lw)
-        plt.legend(loc="best")
-        plt.show()
-    #     return train_scoreNum, test_scoreNum
-    # else:
-    #     return None
+        ax.legend(loc="best")
+        return True
+    return False
+
+def plot_validation_curves(projects, estimator, parameter, param_range, non_features_columns):
+    import math
+   
+    N = len(projects)
+    cols = 4
+    rows = int(math.ceil(N / cols))
+    plt.figure(figsize=(15,4*rows))
+    
+    plot_index = 1
+    for n in range(N):
+        ax = plt.subplot(rows,cols, plot_index)
+        has_data = plot_validation_curve(projects[n], estimator, parameter,
+                                                param_range,
+                                                non_features_columns, ax)
+        if not has_data:
+            ax.remove()
+        else:
+            plot_index+=1
+    plt.tight_layout()
+    plt.savefig(f'validation_curves_{type(estimator).__name__}_{parameter}.png', bbox_inches='tight')
