@@ -338,7 +338,8 @@ def grid_search_all(projects, estimator, parameters, non_features_columns):
         row.extend([0,0,0,0,0,0])
         combinations.append(row)
     results = pd.DataFrame(combinations, columns=results_columns)
-        
+    
+    total_evaluated_projects = 0
     for project in projects:
         project_results = grid_search(project, estimator, parameters, non_features_columns)
         if project_results != None:
@@ -346,9 +347,7 @@ def grid_search_all(projects, estimator, parameters, non_features_columns):
                 .filter(regex=("param_.*|mean_test_score|std_test_score|rank_test_score"))\
                 .sort_values(by=['rank_test_score'])
             
-            top_3 = df_gridsearch_dt[df_gridsearch_dt['rank_test_score']<=3]
-
-            for index, combination in top_3.iterrows():
+            for index, combination in df_gridsearch_dt.iterrows():
                 filtered_rows = results
                 for parameter in list(parameters.keys()):
                     parameter_key = f'param_{parameter}'
@@ -365,17 +364,19 @@ def grid_search_all(projects, estimator, parameters, non_features_columns):
                     silver_medals = row['silver_medals']
                     bronze_medals = row['bronze_medals']
                     
-                    
                     results.at[filtered_rows.index, 'sum_accuracy'] = sum_accuracy + combination['mean_test_score']
                     if combination['rank_test_score'] == 1:
                         results.at[filtered_rows.index, 'gold_medals'] = gold_medals + 1
                     elif combination['rank_test_score'] == 2:
                         results.at[filtered_rows.index, 'silver_medals'] = silver_medals + 1
-                    else:
+                    elif combination['rank_test_score'] == 3:
                         results.at[filtered_rows.index, 'bronze_medals'] = bronze_medals + 1
-                    results.at[filtered_rows.index, 'total_medals'] = gold_medals + silver_medals + bronze_medals + 1
+                    
+                    if combination['rank_test_score'] <= 3:
+                        results.at[filtered_rows.index, 'total_medals'] = gold_medals + silver_medals + bronze_medals + 1
+            total_evaluated_projects+=1
+    results['mean_accuracy'] = results['sum_accuracy'] / total_evaluated_projects
     
-    results['mean_accuracy'] = results['sum_accuracy'] / results['total_medals']
     results = results.drop(['sum_accuracy'], axis=1)
 
     return results
