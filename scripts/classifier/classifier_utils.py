@@ -1,5 +1,7 @@
 import pandas as pd
 from sklearn.model_selection import cross_val_score, GridSearchCV, validation_curve
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import cross_val_predict
@@ -27,6 +29,7 @@ class ProjectsResults:
     def __init__(self, algorithm, projects, non_feature_columns, drop_na=True):
         self.results = {}
         self.algorithm = algorithm
+        self.evaluated_projects=0
         self.evaluate_projects(projects, non_feature_columns, algorithm, drop_na)
     
     def add_project_result(self, project_result):
@@ -45,12 +48,43 @@ class ProjectsResults:
     def evaluate_projects(self, projects, non_features_columns, algorithm, drop_na):
         for project in projects:
             project_results = evaluate_project(project, non_features_columns, algorithm, drop_na)
+            if not np.isnan(project_results.results.iloc[0]['accuracy']):
+                self.evaluated_projects+=1
             self.add_project_result(project_results)
     
     def get_project(self, project_name):
         return self.results[project_name]
 
+    def get_accuracy_per_class_df(self, target_names, include_overall=False):
+        rows = []
+        columns = ['project']
+        columns.extend(target_names)
+        for project_name, project in self.results.items():
+            row = []
+            row.append(project_name)
+            project_df = project.get_scores_df()
+            if 'recall' in project_df:
+                project_df_classes_recall = project_df['recall']
+                for class_name in target_names:
+                    if class_name in project_df_classes_recall:
+                        row.append(project_df_classes_recall[class_name])
+                    else:
+                        row.append(np.nan)
+                rows.append(row)
+        df = pd.DataFrame(rows, columns=columns)
+        if include_overall:
+            df = pd.concat([df, get_overall_accuracy_per_class(df)], ignore_index=True)
+        return df
 
+
+def get_overall_accuracy_per_class(df):
+    values = ['Overall']
+    for column in df.columns:
+        if column != 'project':
+            values.append(df[column].mean(skipna=True))
+    rows = [values]
+    result = pd.DataFrame(rows, columns=df.columns)
+    return result
 
 def get_majority_class_percentage(dataset, class_name):
     count = dataset[class_name].value_counts(normalize=True)
@@ -123,6 +157,34 @@ def get_prediction_scores(y, y_pred, target_names, output_dict=True):
     scores = classification_report(y, y_pred, target_names=target_names, digits=3, output_dict=output_dict)
     return scores
 
+def get_average_tree_depth(estimator, projects, non_features_columns):
+    tree_depths = []
+    if type(estimator) == type(DecisionTreeClassifier()) or type(estimator) == type(RandomForestClassifier()):
+        for project in projects:
+            proj = project.replace("/", "__")
+            proj_dataset = f"../../data/projects/{proj}-training.csv"
+            df_proj = pd.read_csv(proj_dataset)
+            df_clean = df_proj.dropna()
+            if len(df_clean) >= 10:
+                y = df_clean["developerdecision"].copy()
+                df_clean_features = df_clean.drop(columns=['developerdecision']) \
+                                            .drop(columns=non_features_columns)
+                features = list(df_clean_features.columns)
+                X = df_clean_features[features]
+                estimator.fit(X,y)
+                if type(estimator) == type(DecisionTreeClassifier()):
+                    tree_depths.append(estimator.get_depth())
+                elif type(estimator) == type(RandomForestClassifier()):
+                    for estimator_ in estimator.estimators_:
+                        tree_depths.append(estimator_.get_depth())
+    if len(tree_depths) > 0:
+        return sum(tree_depths)/len(tree_depths), tree_depths
+    else:
+        return None
+
+'''
+Compare models overall scores (among all projects given by the parameter)
+'''
 def compare_models(models, models_names, projects, non_features_columns):
     models_results = []
     for model in models:
@@ -131,7 +193,7 @@ def compare_models(models, models_names, projects, non_features_columns):
     for model_results in models_results:
         reports.append(model_results.get_report_df(include_overall=True))
     if len(reports) > 0:
-        df_result = reports[0].loc[(reports[0]['project']=='Overall')]
+        df_result = reports[0].loc[(reports[0]['project']=='Overall')].copy()
         df_result['model'] = None
         for i in range(1, len(reports)):
             df_model_overall_report = reports[i].loc[(reports[i]['project']=='Overall')]
@@ -143,7 +205,109 @@ def compare_models(models, models_names, projects, non_features_columns):
             model_index+=1
         
         return df_result
+
+'''
+Compare models overall accuracy per class (among all projects given by the parameter)
+'''
+def compare_models_per_class(models, models_names, projects, non_features_columns, target_names):
+    models_results = []
+    for model in models:
+        models_results.append(ProjectsResults(model, projects, non_features_columns))
+    reports = []
+    for model_results in models_results:
+        reports.append(model_results.get_accuracy_per_class_df(target_names, include_overall=True))
+    if len(reports) > 0:
+        df_result = reports[0].loc[(reports[0]['project']=='Overall')].copy()
+        df_result['model'] = None
+        for i in range(1, len(reports)):
+            df_model_overall_report = reports[i].loc[(reports[i]['project']=='Overall')]
+            df_result = pd.concat([df_result, df_model_overall_report], ignore_index=True)
+        
+        model_index = 0
+        for index, row in df_result.iterrows():
+            df_result.at[index, 'model'] = models_names[model_index]
+            model_index+=1
+        
+        df_result = df_result.drop(['project'], axis=1)
+
+        # move the column 'model' to the first position of the dataframe columns
+        cols = list(df_result.columns.values)
+        cols = cols[-1:] + cols[:-1]
+        df_result = df_result[cols]
+        return df_result
+
+'''
+Compare models overall scores (among all projects given by the parameter) assigning medals to top3
+'''
+def compare_models_medals(models, models_names, projects, non_features_columns):
+    results = {}
+    results_columns = ['model_name', 'mean_accuracy', 'sum_accuracy', 'sum_rank', 'total_medals', 'gold_medals', 'silver_medals', 'bronze_medals']
+    rows = []
+
+    # initialize the result dataframe
+    for model, model_name in zip(models, models_names):
+        row = [model_name, 0.0,0.0,0,0,0,0,0]
+        rows.append(row)
+
+    results = pd.DataFrame(rows, columns=results_columns)
+    total_evaluated_projects = 0
     
+    for project in projects:
+        model_results_project = {}
+        columns = ['model_name', 'accuracy']
+        rows = []
+        
+        evaluated_project = False
+
+        # execute each model for this project
+        for model, model_name in zip(models, models_names):
+            model_results = ProjectsResults(model, [project], non_features_columns)
+            model_results_df = model_results.get_report_df(include_overall=True)
+            model_accuracy = model_results_df[model_results_df['project']=='Overall'].iloc[0]['accuracy']
+            if not np.isnan(model_accuracy) and not evaluated_project:
+                evaluated_project = True
+            rows.append([model_name, model_accuracy])
+        
+        if evaluated_project:
+            total_evaluated_projects+=1
+        
+        model_results_project = pd.DataFrame(rows, columns=columns)
+        model_results_project['rank'] = model_results_project['accuracy'].rank(method='min', ascending=False)
+        
+        # assign medals to the top-3 models
+        for index, model_results in model_results_project.iterrows():
+            if not np.isnan(model_results['accuracy']):
+                row = results[results['model_name'] == model_results['model_name']].iloc[0]
+                sum_accuracy = row['sum_accuracy']
+                sum_rank = row['sum_rank']
+                gold_medals = row['gold_medals']
+                silver_medals = row['silver_medals']
+                bronze_medals = row['bronze_medals']
+                
+                results.at[row.name, 'sum_accuracy'] = sum_accuracy + model_results['accuracy']
+                results.at[row.name, 'sum_rank'] = sum_rank + model_results['rank']
+                if model_results['rank'] == 1:
+                    results.at[row.name, 'gold_medals'] = gold_medals + 1
+                elif model_results['rank'] == 2:
+                    results.at[row.name, 'silver_medals'] = silver_medals + 1
+                elif model_results['rank'] == 3:
+                    results.at[row.name, 'bronze_medals'] = bronze_medals + 1
+                
+                if model_results['rank'] <= 3:
+                    results.at[row.name, 'total_medals'] = gold_medals + silver_medals + bronze_medals + 1
+    
+    if total_evaluated_projects != 0:
+        results['mean_accuracy'] = results['sum_accuracy'] / total_evaluated_projects
+        results['mean_rank'] = results['sum_rank'] / total_evaluated_projects
+    else:
+        results['mean_accuracy'] = 0
+        results['mean_rank'] = 0
+    results = results.drop(['sum_accuracy'], axis=1)
+    results = results.drop(['sum_rank'], axis=1)
+
+    return results
+
+
 # obs about metrics used:
 # weighted metrics: precision, recall, and f1-score
 # Calculate metrics for each label (class), and find their average weighted by support (the number of true instances for each label).
@@ -326,7 +490,7 @@ def grid_search_all(projects, estimator, parameters, non_features_columns):
     import itertools
     results = {}
     results_columns = list(parameters.keys())
-    results_columns.extend(['mean_accuracy', 'sum_accuracy', 'total_medals', 'gold_medals', 'silver_medals', 'bronze_medals'])
+    results_columns.extend(['mean_accuracy', 'sum_accuracy', 'sum_rank', 'total_medals', 'gold_medals', 'silver_medals', 'bronze_medals'])
     combinations = []
 
     for combination in itertools.product(*parameters.values()):
@@ -335,7 +499,7 @@ def grid_search_all(projects, estimator, parameters, non_features_columns):
         for parameter_value in combination:
             row.append(parameter_value)
             key+=str(parameter_value)
-        row.extend([0,0,0,0,0,0])
+        row.extend([0,0,0,0,0,0,0])
         combinations.append(row)
     results = pd.DataFrame(combinations, columns=results_columns)
     
@@ -360,11 +524,13 @@ def grid_search_all(projects, estimator, parameters, non_features_columns):
                 if len(filtered_rows) > 0:
                     row = results.loc[filtered_rows.index]
                     sum_accuracy = row['sum_accuracy']
+                    sum_rank = row['sum_rank']
                     gold_medals = row['gold_medals']
                     silver_medals = row['silver_medals']
                     bronze_medals = row['bronze_medals']
                     
                     results.at[filtered_rows.index, 'sum_accuracy'] = sum_accuracy + combination['mean_test_score']
+                    results.at[filtered_rows.index, 'sum_rank'] = sum_rank + combination['rank_test_score']
                     if combination['rank_test_score'] == 1:
                         results.at[filtered_rows.index, 'gold_medals'] = gold_medals + 1
                     elif combination['rank_test_score'] == 2:
@@ -376,8 +542,10 @@ def grid_search_all(projects, estimator, parameters, non_features_columns):
                         results.at[filtered_rows.index, 'total_medals'] = gold_medals + silver_medals + bronze_medals + 1
             total_evaluated_projects+=1
     results['mean_accuracy'] = results['sum_accuracy'] / total_evaluated_projects
+    results['mean_rank'] = results['sum_rank'] / total_evaluated_projects
     
     results = results.drop(['sum_accuracy'], axis=1)
+    results = results.drop(['sum_rank'], axis=1)
 
     return results
 
