@@ -2,6 +2,7 @@ import pandas as pd
 from sklearn.model_selection import cross_val_score, GridSearchCV, validation_curve
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import cross_val_predict
@@ -26,11 +27,11 @@ class ProjectResults:
         return pd.DataFrame(self.confusion_matrix, index=self.target_names, columns=self.target_names)
 
 class ProjectsResults:
-    def __init__(self, algorithm, projects, non_feature_columns, drop_na=True):
+    def __init__(self, algorithm, projects, non_feature_columns, drop_na=True, replace_na=False):
         self.results = {}
         self.algorithm = algorithm
         self.evaluated_projects=0
-        self.evaluate_projects(projects, non_feature_columns, algorithm, drop_na)
+        self.evaluate_projects(projects, non_feature_columns, algorithm, drop_na, replace_na)
     
     def add_project_result(self, project_result):
         self.results[project_result.project_name] = project_result
@@ -45,9 +46,9 @@ class ProjectsResults:
             df = pd.concat([df, get_overall_accuracy(df)], ignore_index=True)
         return df
 
-    def evaluate_projects(self, projects, non_features_columns, algorithm, drop_na):
+    def evaluate_projects(self, projects, non_features_columns, algorithm, drop_na, replace_na):
         for project in projects:
-            project_results = evaluate_project(project, non_features_columns, algorithm, drop_na)
+            project_results = evaluate_project(project, non_features_columns, algorithm, drop_na, replace_na)
             if not np.isnan(project_results.results.iloc[0]['accuracy']):
                 self.evaluated_projects+=1
             self.add_project_result(project_results)
@@ -307,17 +308,24 @@ def compare_models_medals(models, models_names, projects, non_features_columns):
 
     return results
 
+def replace_na_values(df):
+    imp_constant = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=-1)
+    df_constant = pd.DataFrame(imp_constant.fit_transform(df),
+                           columns = df.columns)
+    return df_constant
 
 # obs about metrics used:
 # weighted metrics: precision, recall, and f1-score
 # Calculate metrics for each label (class), and find their average weighted by support (the number of true instances for each label).
 # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_recall_fscore_support.html#sklearn.metrics.precision_recall_fscore_support
 # macro metrics: Calculate metrics for each label, and find their unweighted mean. This does not take label imbalance into account.
-def evaluate_project(project, non_features_columns, algorithm, drop_na=True):
+def evaluate_project(project, non_features_columns, algorithm, drop_na=True, replace_na=False):
     results = []
     project = project.replace("/", "__")
     project_dataset = f"../../data/projects/{project}-training.csv"
     df = pd.read_csv(project_dataset)
+    if replace_na:
+        df = replace_na_values(df)
     if drop_na:
         df_clean = df.dropna()
     else:
