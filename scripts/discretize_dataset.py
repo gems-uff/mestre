@@ -28,14 +28,8 @@ def discretize_df(df, type='log10'):
         if df[column].min() < 0:
             df = df[(df[column] >= 0) | (df[column].isna())]
     df = df[df['developerdecision']!='UnknownConcatenation']
-
-    if type == 'log10':
-        discretized_df, labels = utils.get_discretized_df(df, numeric_columns)
-    elif type == 'log2':
-        discretized_df = utils.get_discretized_df_new(df, numeric_columns)
-    else:
-        raise ValueError('No discretization type set. Valid values are: log10 or log2')
-
+    discretized_df = utils.get_discretized_df_new(df, numeric_columns, type)
+    
     discretized_df = add_remaining_columns(df, discretized_df)
     return discretized_df
 

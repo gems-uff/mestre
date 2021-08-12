@@ -98,7 +98,7 @@ def get_discretized_df(df, columns):
                         ordered=True)
     return discretized, labels
 
-def get_log_discretized_value(value):
+def get_log2_discretized_value(value):
     if np.isnan(value) or value == -1:
         return int(-2)
     value = round(value)
@@ -107,11 +107,25 @@ def get_log_discretized_value(value):
     else:
         return int(np.round(np.log2(value)))
 
+def get_log10_discretized_value(value):
+    if np.isnan(value) or value == -1:
+        return int(-2)
+    value = round(value)
+    if value == 0:
+        return int(-1)
+    else:
+        return int(np.round(np.log10(value)))
+
 # returns a discretized dataframe for numerical (integer) columns
-def get_discretized_df_new(df, columns):
+def get_discretized_df_new(df, columns, base='log10'):
     discretized = df[['chunk_id', 'developerdecision']].copy()
     for column in columns:
-        discretized[column] = df[column].map(get_log_discretized_value)
+        if base == 'log2':
+            discretized[column] = df[column].map(get_log2_discretized_value)
+        elif base == 'log10':
+            discretized[column] = df[column].map(get_log10_discretized_value)
+        else:
+            raise ValueError('No discretization type set. Valid values are: log10 or log2')
     return discretized
 
 # returns the entropy of the classes of the column developerdecision 
