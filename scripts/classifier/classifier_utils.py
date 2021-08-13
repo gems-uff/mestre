@@ -7,7 +7,7 @@ import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import cross_val_predict
 from matplotlib import pyplot as plt
-
+import configs
 
 class ProjectResults:
     def __init__(self, project_name, results, scores, scores_text, confusion_matrix, target_names):
@@ -27,11 +27,11 @@ class ProjectResults:
         return pd.DataFrame(self.confusion_matrix, index=self.target_names, columns=self.target_names)
 
 class ProjectsResults:
-    def __init__(self, algorithm, projects, non_feature_columns, drop_na=True, replace_na=False):
+    def __init__(self, algorithm, projects, non_feature_columns, projects_data_path=configs.PROJECTS_DATA, drop_na=True, replace_na=False):
         self.results = {}
         self.algorithm = algorithm
         self.evaluated_projects=0
-        self.evaluate_projects(projects, non_feature_columns, algorithm, drop_na, replace_na)
+        self.evaluate_projects(projects, non_feature_columns, algorithm, projects_data_path, drop_na, replace_na)
     
     def add_project_result(self, project_result):
         self.results[project_result.project_name] = project_result
@@ -46,9 +46,9 @@ class ProjectsResults:
             df = pd.concat([df, get_overall_accuracy(df)], ignore_index=True)
         return df
 
-    def evaluate_projects(self, projects, non_features_columns, algorithm, drop_na, replace_na):
+    def evaluate_projects(self, projects, non_features_columns, algorithm, drop_na, replace_na, projects_data_path):
         for project in projects:
-            project_results = evaluate_project(project, non_features_columns, algorithm, drop_na, replace_na)
+            project_results = evaluate_project(project, non_features_columns, algorithm, drop_na, replace_na, projects_data_path)
             if not np.isnan(project_results.results.iloc[0]['accuracy']):
                 self.evaluated_projects+=1
             self.add_project_result(project_results)
@@ -319,10 +319,10 @@ def replace_na_values(df):
 # Calculate metrics for each label (class), and find their average weighted by support (the number of true instances for each label).
 # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_recall_fscore_support.html#sklearn.metrics.precision_recall_fscore_support
 # macro metrics: Calculate metrics for each label, and find their unweighted mean. This does not take label imbalance into account.
-def evaluate_project(project, non_features_columns, algorithm, drop_na=True, replace_na=False):
+def evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na=True, replace_na=False):
     results = []
     project = project.replace("/", "__")
-    project_dataset = f"../../data/projects/{project}-training.csv"
+    project_dataset = f"{projects_data_path}/{project}-training.csv"
     df = pd.read_csv(project_dataset)
     if replace_na:
         df = replace_na_values(df)
