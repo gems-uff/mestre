@@ -46,9 +46,9 @@ class ProjectsResults:
             df = pd.concat([df, get_overall_accuracy(df)], ignore_index=True)
         return df
 
-    def evaluate_projects(self, projects, non_features_columns, algorithm, drop_na, replace_na, projects_data_path):
+    def evaluate_projects(self, projects, non_features_columns, algorithm, projects_data_path, drop_na, replace_na):
         for project in projects:
-            project_results = evaluate_project(project, non_features_columns, algorithm, drop_na, replace_na, projects_data_path)
+            project_results = evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na, replace_na)
             if not np.isnan(project_results.results.iloc[0]['accuracy']):
                 self.evaluated_projects+=1
             self.add_project_result(project_results)
