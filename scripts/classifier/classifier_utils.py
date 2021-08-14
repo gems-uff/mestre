@@ -27,11 +27,11 @@ class ProjectResults:
         return pd.DataFrame(self.confusion_matrix, index=self.target_names, columns=self.target_names)
 
 class ProjectsResults:
-    def __init__(self, algorithm, projects, non_feature_columns, projects_data_path=configs.PROJECTS_DATA, drop_na=True, replace_na=False):
+    def __init__(self, algorithm, projects, non_feature_columns, projects_data_path=configs.PROJECTS_DATA, drop_na=True, replace_na=False, ablation=False, ablation_group=''):
         self.results = {}
         self.algorithm = algorithm
         self.evaluated_projects=0
-        self.evaluate_projects(projects, non_feature_columns, algorithm, projects_data_path, drop_na, replace_na)
+        self.evaluate_projects(projects, non_feature_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group)
     
     def add_project_result(self, project_result):
         self.results[project_result.project_name] = project_result
@@ -46,9 +46,9 @@ class ProjectsResults:
             df = pd.concat([df, get_overall_accuracy(df)], ignore_index=True)
         return df
 
-    def evaluate_projects(self, projects, non_features_columns, algorithm, projects_data_path, drop_na, replace_na):
+    def evaluate_projects(self, projects, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group):
         for project in projects:
-            project_results = evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na, replace_na)
+            project_results = evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group)
             if not np.isnan(project_results.results.iloc[0]['accuracy']):
                 self.evaluated_projects+=1
             self.add_project_result(project_results)
@@ -76,6 +76,47 @@ class ProjectsResults:
         if include_overall:
             df = pd.concat([df, get_overall_accuracy_per_class(df)], ignore_index=True)
         return df
+
+class IgnoreChunkAttributes:
+    def __init__(self, attributes_group, project):
+        self.ignored_columns = []
+        self.get_ignored_attributes(attributes_group, project)
+    
+    def get_ignored_attributes(self, attributes_group, project):
+        if attributes_group == 'complexity' or attributes_group == 'all':
+            self.ignored_columns.extend(['leftCC', 'rightCC'])
+        if attributes_group == 'size' or attributes_group == 'all':
+            self.ignored_columns.extend(['chunkAbsSize', 'chunkRelSize', 'chunk_left_abs_size', 'chunk_left_rel_size',
+             'chunk_right_abs_size', 'chunk_right_rel_size', 'chunkPosition'])
+        if attributes_group == 'position' or attributes_group == 'all':
+            self.ignored_columns.extend(['chunkPosition'])
+
+        if attributes_group == 'authorship' or attributes_group == 'content' or attributes_group == 'all':
+            project = project.replace("/", "__")
+            projects_data_path = configs.PROJECTS_DATA
+            project_dataset = f"{projects_data_path}/{project}-training.csv"
+            df = pd.read_csv(project_dataset)
+            if attributes_group == 'authorship' or attributes_group == 'all':
+                self.ignored_columns.append('self_conflict_perc')
+                
+                # use an heuristic to identify column names related to the authors involved in the conflict
+                # none of the other column names have '.' or '@', which most of the author' columns have
+                for column in list(df.columns):
+                    if '.' in column or '@' in column:
+                        self.ignored_columns.append(column)
+            
+            if attributes_group == 'content' or attributes_group == 'all':
+                all_possible_constructors = ['Class declaration', 'Return statement', 'Array access', 'Cast expression', 
+                'Attribute', 'Array initializer', 'Do statement', 'Case statement', 'Other', 'Method signature', 'Break statement',
+                'TypeDeclarationStatement', 'Comment', 'Method invocation', 'Package declaration', 'While statement', 
+                'Interface signature', 'Variable', 'Enum value', 'Class signature', 'Annotation', 'Method interface',
+                'Interface declaration', 'Synchronized statement', 'Throw statement', 'Switch statement', 'Catch clause',
+                'Try statement', 'Annotation declaration', 'For statement', 'Enum declaration', 'Enum signature', 'Assert statement',
+                'Static initializer', 'If statement', 'Method declaration', 'Continue statement', 'Import', 'Blank']
+                for column in list(df.columns):
+                    for constructor in all_possible_constructors:
+                        if constructor in column:
+                            self.ignored_columns.append(column)
 
 
 def get_overall_accuracy_per_class(df):
@@ -319,7 +360,7 @@ def replace_na_values(df):
 # Calculate metrics for each label (class), and find their average weighted by support (the number of true instances for each label).
 # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_recall_fscore_support.html#sklearn.metrics.precision_recall_fscore_support
 # macro metrics: Calculate metrics for each label, and find their unweighted mean. This does not take label imbalance into account.
-def evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na=True, replace_na=False):
+def evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na=True, replace_na=False, ablation=False, ablation_group=''):
     results = []
     project = project.replace("/", "__")
     project_dataset = f"{projects_data_path}/{project}-training.csv"
@@ -330,6 +371,11 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
         df_clean = df.dropna()
     else:
         df_clean = df
+    if ablation:
+        ignored_attributes = IgnoreChunkAttributes(ablation_group, project).ignored_columns
+        df_clean = df_clean.drop(columns=ignored_attributes)
+        # print(ignored_attributes.ignored_columns)
+    # print(len(df_clean.columns))
     majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
     scores = {}
     scores_text= ''
@@ -697,3 +743,5 @@ def plot_validation_curves(projects, estimator, parameter, param_range, non_feat
             plot_index+=1
     plt.tight_layout()
     plt.savefig(f'validation_curves_{type(estimator).__name__}_{parameter}.png', bbox_inches='tight')
+
+# def ablation_chunk_attributes(projects, algorithm, non_features_columns, attributes_group):
