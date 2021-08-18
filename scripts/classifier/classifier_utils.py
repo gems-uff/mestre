@@ -140,14 +140,12 @@ def get_normalized_improvement(accuracy, baseline_accuracy):
         return (accuracy - baseline_accuracy) / (1 - baseline_accuracy)
     return (accuracy - baseline_accuracy) / baseline_accuracy
 
-def get_project_class_distribution(project, normalized=True, drop_na=True):
+def get_project_class_distribution(project_dataset, project_name, normalized=True, drop_na=True):
     developer_decisions = ['Version 1', 'Version 2', 'Combination', 'ConcatenationV1V2', 
     'ConcatenationV2V1', 'Manual', 'None']
     
-    row = [project]
-    project = project.replace("/", "__")
-    project_dataset = f"../../data/projects/{project}-training.csv"
-    df = pd.read_csv(project_dataset)
+    row = [project_name]
+    df = project_dataset
     if drop_na:
         df_clean = df.dropna()
     else:
@@ -167,13 +165,20 @@ def get_project_class_distribution(project, normalized=True, drop_na=True):
     df_columns.extend(developer_decisions)
     return pd.DataFrame([row], columns=df_columns)
 
-def get_projects_class_distribution(projects, normalized=True, drop_na=True):
+def get_projects_class_distribution(projects, normalized=True, drop_na=True, include_overall=False):
     results = []
-    developer_decisions = ['Version 1', 'Version 2', 'Combination', 'ConcatenationV1V2', 
-    'ConcatenationV2V1', 'Manual', 'None']
     for project in projects:
-        results.append(get_project_class_distribution(project, normalized, drop_na))
-    return pd.concat(results, ignore_index=True)
+        project_name = project.replace("/", "__")
+        project_dataset_path = f"../../data/projects/{project_name}-training.csv"
+        df = pd.read_csv(project_dataset_path)
+        results.append(get_project_class_distribution(df, project_name, normalized, drop_na))
+    if include_overall:
+            project_name = 'Overall'
+            dataset_path = f"../../data/dataset-training.csv"
+            df = pd.read_csv(dataset_path)
+            results.append(get_project_class_distribution(df, project_name, normalized, drop_na))
+    results = pd.concat(results, ignore_index=True)
+    return results
     # return pd.DataFrame(results, columns=df_columns)
 
 # ignores projects that were not evaluated (accuracy = np.NaN)
@@ -195,8 +200,16 @@ def predict(algorithm, X, y):
     y_pred = cross_val_predict(algorithm, X, y, cv=10)
     return y_pred
 
-def get_prediction_scores(y, y_pred, target_names, output_dict=True):
-    scores = classification_report(y, y_pred, target_names=target_names, digits=3, output_dict=output_dict)
+def get_all_involved_classes(y, y_pred):
+    class_names = set(y)
+    predicted_class_names = set(y_pred)
+    class_names = class_names.union(predicted_class_names)
+    class_names = sorted(list(class_names))
+    return class_names
+
+def get_prediction_scores(y, y_pred, output_dict=True):
+    class_names = get_all_involved_classes(y, y_pred)
+    scores = classification_report(y, y_pred, target_names=class_names, digits=3, output_dict=output_dict)
     return scores
 
 def get_average_tree_depth(estimator, projects, non_features_columns):
@@ -362,6 +375,7 @@ def replace_na_values(df):
 # macro metrics: Calculate metrics for each label, and find their unweighted mean. This does not take label imbalance into account.
 def evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na=True, replace_na=False, ablation=False, ablation_group=''):
     results = []
+    class_names = []
     project = project.replace("/", "__")
     project_dataset = f"{projects_data_path}/{project}-training.csv"
     df = pd.read_csv(project_dataset)
@@ -392,9 +406,10 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
         # accuracy = scores.mean()
         # std_dev = scores.std()
         y_pred = predict(algorithm, X, y)
-        scores = get_prediction_scores(y, y_pred, target_names)
-        scores_text = get_prediction_scores(y, y_pred, target_names, False)
-        conf_matrix = confusion_matrix(y, y_pred, labels=target_names)
+        scores = get_prediction_scores(y, y_pred)
+        scores_text = get_prediction_scores(y, y_pred, False)
+        class_names = get_all_involved_classes(y,y_pred)
+        conf_matrix = confusion_matrix(y, y_pred, labels=class_names)
         
         accuracy = scores['accuracy']
         precision = scores['weighted avg']['precision']
@@ -408,7 +423,7 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
     results = pd.DataFrame(results, columns=['project', 'observations', 'observations (wt NaN)', 'precision', 'recall', 'f1-score', 'accuracy', 'baseline (majority)', 'improvement'])
     
     results = results.round(3)
-    return ProjectResults(project, results, scores, scores_text, conf_matrix, target_names)
+    return ProjectResults(project, results, scores, scores_text, conf_matrix, class_names)
 
 # adapted from https://stackoverflow.com/questions/28200786/how-to-plot-scikit-learn-classification-report
 def show_values(pc, fmt="%.2f", **kw):
