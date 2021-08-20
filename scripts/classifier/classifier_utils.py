@@ -3,6 +3,7 @@ from sklearn.model_selection import cross_val_score, GridSearchCV, validation_cu
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
+from sklearn.feature_selection import RFECV, SelectFromModel
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import cross_val_predict
@@ -759,4 +760,82 @@ def plot_validation_curves(projects, estimator, parameter, param_range, non_feat
     plt.tight_layout()
     plt.savefig(f'validation_curves_{type(estimator).__name__}_{parameter}.png', bbox_inches='tight')
 
-# def ablation_chunk_attributes(projects, algorithm, non_features_columns, attributes_group):
+def projects_feature_selection(projects, non_features_columns, algorithm, feature_selection_strategy):
+    results = []
+    selected_features_count = {}
+    for project in projects:
+        project = project.replace("/", "__")
+        project_dataset = f"{configs.PROJECTS_DATA}/{project}-training.csv"
+        df = pd.read_csv(project_dataset)
+        df_clean = df.dropna()
+        
+        scores = {}
+        scores_text= ''
+        target_names = sorted(df['developerdecision'].unique())
+        if len(df_clean) >= 10:
+            y = df_clean["developerdecision"].copy()
+            df_clean = df_clean.drop(columns=['developerdecision'])
+            df_clean = df_clean.drop(columns=non_features_columns)
+            features = list(df_clean.columns)
+            X = df_clean[features]
+            scores = cross_val_score(algorithm, X, y, cv=10)
+            default_accuracy = scores.mean()
+
+            # feature selection code
+            if feature_selection_strategy == 'tree':
+                algorithm.fit(X,y)
+                selection_algorithm = SelectFromModel(algorithm, prefit=True)
+                X_selected = selection_algorithm.transform(X)
+            elif feature_selection_strategy == 'recursive':
+                min_features_to_select = 1
+                selection_algorithm = RFECV(estimator=algorithm, step=1, cv=5,
+                  scoring='accuracy', n_jobs=5,
+                  min_features_to_select=min_features_to_select)
+                selection_algorithm.fit(X, y)
+                X_selected = selection_algorithm.transform(X)
+            else:
+                print('Invalid feature selection strategy')
+                return None
+            original_features = X.shape[1]
+            nr_selected_features = X_selected.shape[1]
+            scores = cross_val_score(algorithm, X_selected, y, cv=10)
+            new_accuracy = scores.mean()
+            normalized_improvement = get_normalized_improvement(new_accuracy, default_accuracy)
+
+            selected_features = get_list_selected_features(selection_algorithm, X)
+            selected_features_count = count_selected_features(selected_features, selected_features_count)
+            
+            results.append([project, len(df_clean), original_features, nr_selected_features, default_accuracy, new_accuracy, normalized_improvement])
+        else:
+            results.append([project, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN])
+    
+    results = pd.DataFrame(results, columns=['project', 'N', '# attr.', '# attr. fs', 'accuracy', 'accuracy_fs', 'improvement'])
+    results = pd.concat([results, get_overall_feature_selection(results)], ignore_index=True)
+    results = results.round(3)
+    selected_features_count = pd.DataFrame.from_dict(selected_features_count, orient='index', columns=['Count'])
+    return results, selected_features_count
+
+def get_list_selected_features(selection_algorithm, X):
+    selected_features= X.columns[(selection_algorithm.get_support())]
+    return list(selected_features)
+
+def count_selected_features(selected_features, current_count):
+    for selected_feature in selected_features:
+        if selected_feature in current_count:
+            current_count[selected_feature] += 1
+        else:
+            current_count[selected_feature] = 1
+    return current_count
+
+def get_overall_feature_selection(df):
+    n = df['N'].sum()
+    nr_attributes = df['# attr.'].mean(skipna=True)
+    nr_selected_attributes = df['# attr. fs'].mean(skipna=True)
+    default_accuracy = df['accuracy'].mean(skipna=True)
+    new_accuracy = df['accuracy_fs'].mean(skipna=True)
+    improvement = get_normalized_improvement(new_accuracy, default_accuracy)
+    
+    values = ['Overall', n, nr_attributes, nr_selected_attributes, default_accuracy, new_accuracy, improvement]
+    rows = [values]
+    result = pd.DataFrame(rows, columns=df.columns)
+    return result
