@@ -57,21 +57,20 @@ class ProjectsResults:
     def get_project(self, project_name):
         return self.results[project_name]
 
-    def get_accuracy_per_class_df(self, target_names, include_overall=False):
+    def get_class_score_df(self, target_name, score_metric, include_overall=False):
         rows = []
         columns = ['project']
-        columns.extend(target_names)
+        columns.append(target_name)
         for project_name, project in self.results.items():
             row = []
             row.append(project_name)
             project_df = project.get_scores_df()
-            if 'recall' in project_df:
-                project_df_classes_recall = project_df['recall']
-                for class_name in target_names:
-                    if class_name in project_df_classes_recall:
-                        row.append(project_df_classes_recall[class_name])
-                    else:
-                        row.append(np.nan)
+            if score_metric in project_df:
+                project_df_classes_recall = project_df[score_metric]
+                if target_name in project_df_classes_recall:
+                    row.append(project_df_classes_recall[target_name])
+                else:
+                    row.append(np.nan)
                 rows.append(row)
         df = pd.DataFrame(rows, columns=columns)
         if include_overall:
@@ -263,34 +262,21 @@ def compare_models(models, models_names, projects, non_features_columns):
         return df_result
 
 '''
-Compare models overall accuracy per class (among all projects given by the parameter)
+Compare models precision, recall and f-measure for a specified class (target_name)
 '''
-def compare_models_per_class(models, models_names, projects, non_features_columns, target_names):
-    models_results = []
-    for model in models:
-        models_results.append(ProjectsResults(model, projects, non_features_columns))
-    reports = []
-    for model_results in models_results:
-        reports.append(model_results.get_accuracy_per_class_df(target_names, include_overall=True))
-    if len(reports) > 0:
-        df_result = reports[0].loc[(reports[0]['project']=='Overall')].copy()
-        df_result['model'] = None
-        for i in range(1, len(reports)):
-            df_model_overall_report = reports[i].loc[(reports[i]['project']=='Overall')]
-            df_result = pd.concat([df_result, df_model_overall_report], ignore_index=True)
-        
-        model_index = 0
-        for index, row in df_result.iterrows():
-            df_result.at[index, 'model'] = models_names[model_index]
-            model_index+=1
-        
-        df_result = df_result.drop(['project'], axis=1)
-
-        # move the column 'model' to the first position of the dataframe columns
-        cols = list(df_result.columns.values)
-        cols = cols[-1:] + cols[:-1]
-        df_result = df_result[cols]
-        return df_result
+def compare_models_per_class(target_name, models_results, models_names):
+    data = []
+    columns = ['model', 'precision', 'recall', 'f1-score']
+    for model_name, model_results in models_results.items():
+        if model_name in models_names:
+            precision_df = model_results.get_class_score_df(target_name, 'precision', include_overall=True)
+            precision = precision_df[precision_df['project'] == 'Overall'].iloc[0][target_name]
+            recall_df = model_results.get_class_score_df(target_name, 'recall', include_overall=True)
+            recall = recall_df[recall_df['project'] == 'Overall'].iloc[0][target_name]
+            f1score_df = model_results.get_class_score_df(target_name, 'f1-score', include_overall=True)
+            f1score = f1score_df[f1score_df['project'] == 'Overall'].iloc[0][target_name]
+            data.append([model_name, precision, recall, f1score])
+    return pd.DataFrame(data, columns=columns)
 
 '''
 Compare models overall scores (among all projects given by the parameter) assigning medals to top3
