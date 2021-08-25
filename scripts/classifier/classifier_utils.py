@@ -28,11 +28,11 @@ class ProjectResults:
         return pd.DataFrame(self.confusion_matrix, index=self.target_names, columns=self.target_names)
 
 class ProjectsResults:
-    def __init__(self, algorithm, projects, non_feature_columns, projects_data_path=configs.PROJECTS_DATA, drop_na=True, replace_na=False, ablation=False, ablation_group=''):
+    def __init__(self, algorithm, projects, non_feature_columns, projects_data_path=configs.PROJECTS_DATA, drop_na=True, replace_na=False, ablation=False, ablation_group='', ablation_mode='remove'):
         self.results = {}
         self.algorithm = algorithm
         self.evaluated_projects=0
-        self.evaluate_projects(projects, non_feature_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group)
+        self.evaluate_projects(projects, non_feature_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group, ablation_mode)
     
     def add_project_result(self, project_result):
         self.results[project_result.project_name] = project_result
@@ -47,9 +47,9 @@ class ProjectsResults:
             df = pd.concat([df, get_overall_accuracy(df)], ignore_index=True)
         return df
 
-    def evaluate_projects(self, projects, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group):
+    def evaluate_projects(self, projects, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group, ablation_mode):
         for project in projects:
-            project_results = evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group)
+            project_results = evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group, ablation_mode)
             if not np.isnan(project_results.results.iloc[0]['accuracy']):
                 self.evaluated_projects+=1
             self.add_project_result(project_results)
@@ -360,7 +360,7 @@ def replace_na_values(df):
 # Calculate metrics for each label (class), and find their average weighted by support (the number of true instances for each label).
 # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_recall_fscore_support.html#sklearn.metrics.precision_recall_fscore_support
 # macro metrics: Calculate metrics for each label, and find their unweighted mean. This does not take label imbalance into account.
-def evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na=True, replace_na=False, ablation=False, ablation_group=''):
+def evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na=True, replace_na=False, ablation=False, ablation_group='', ablation_mode='remove'):
     results = []
     class_names = []
     project = project.replace("/", "__")
@@ -373,7 +373,12 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
     else:
         df_clean = df
     if ablation:
-        ignored_attributes = IgnoreChunkAttributes(ablation_group, project).ignored_columns
+        if ablation_mode == 'add':
+            chunk_attributes = IgnoreChunkAttributes('all', project).ignored_columns
+            include_attributes = IgnoreChunkAttributes(ablation_group, project).ignored_columns
+            ignored_attributes = list(set(chunk_attributes) - set(include_attributes))
+        else:
+            ignored_attributes = IgnoreChunkAttributes(ablation_group, project).ignored_columns
         df_clean = df_clean.drop(columns=ignored_attributes)
         # print(ignored_attributes.ignored_columns)
     # print(len(df_clean.columns))
