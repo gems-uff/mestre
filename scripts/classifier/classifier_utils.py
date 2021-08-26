@@ -833,6 +833,9 @@ def get_overall_feature_selection(df):
     result = pd.DataFrame(rows, columns=df.columns)
     return result
 
+'''
+    CREDITS TO https://stackoverflow.com/a/64914824
+'''
 def get_information_gain(class_, feature):
   classes = set(class_)
 
@@ -900,7 +903,7 @@ def IGAR(n, X, y):
 
 '''
 Collect accuracy for each n
-Vary the n parameter from 1 to 84 (min attributes)
+Vary the n parameter from min_n to max_n
     For each n:
         For each project:
             Execute the IGAR using n
@@ -918,8 +921,6 @@ def IGAR_tuning(prediction_algorithm, projects, non_features_columns, min_n, max
             df_clean = df.dropna()
             
             scores = {}
-            scores_text= ''
-            target_names = sorted(df['developerdecision'].unique())
             if len(df_clean) >= 10:
                 y = df_clean["developerdecision"].copy()
                 df_clean = df_clean.drop(columns=['developerdecision'])
@@ -927,19 +928,15 @@ def IGAR_tuning(prediction_algorithm, projects, non_features_columns, min_n, max
                 features = list(df_clean.columns)
                 X = df_clean[features]
 
-
-                scores = cross_val_score(prediction_algorithm, X, y, cv=10)
+                scores = cross_val_score(prediction_algorithm, X, y, cv=5)
                 default_accuracy = scores.mean()
 
                 selected_attributes, attributes_ranking = IGAR(n, X, y)
                 X_selected = X[selected_attributes]
 
-                original_features = X.shape[1]
-                nr_selected_features = X_selected.shape[1]
-                scores = cross_val_score(prediction_algorithm, X_selected, y, cv=10)
+                scores = cross_val_score(prediction_algorithm, X_selected, y, cv=5)
                 new_accuracy = scores.mean()
 
-                # print(f'project: {project} n: {n}  default: {default_accuracy}  new: {new_accuracy}  attr: {X.shape[1]}  new_attr: {X_selected.shape[1]}')
                 data.append([project, n, default_accuracy, new_accuracy, X.shape[1]])
     df = pd.DataFrame(data, columns=columns)
     if save:

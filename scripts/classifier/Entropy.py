@@ -1,4 +1,7 @@
 from __future__ import division
+'''
+    CREDITS TO https://github.com/navicto/Discretization-MDLPC
+'''
 
 __author__ = 'Victor Ruiz, vmr11@pitt.edu'
 
