@@ -1,4 +1,5 @@
 import pandas as pd
+import math
 from sklearn.model_selection import cross_val_score, GridSearchCV, validation_curve
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -9,6 +10,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import cross_val_predict
 from matplotlib import pyplot as plt
 import configs
+from MDLP import MDLP_Discretizer
 
 class ProjectResults:
     def __init__(self, project_name, results, scores, scores_text, confusion_matrix, target_names):
@@ -830,3 +832,161 @@ def get_overall_feature_selection(df):
     rows = [values]
     result = pd.DataFrame(rows, columns=df.columns)
     return result
+
+def get_information_gain(class_, feature):
+  classes = set(class_)
+
+  Hc = 0
+  for c in classes:
+    pc = class_.count(c)/len(class_) # probability of the class
+    Hc += - pc * math.log(pc, 2) # accumulate the entropy for this class
+
+  feature_values = set(feature)
+  Hc_feature = 0
+  for feat in feature_values:
+    pf = feature.count(feat)/len(feature) # probability of the feature
+    indices = [i for i in range(len(feature)) if feature[i] == feat] # indices where the feature happens
+    clasess_of_feat = [class_[i] for i in indices] # classes assigned to each occurrence of this feature
+    for c in classes:
+        pcf = clasess_of_feat.count(c)/len(clasess_of_feat) # probability of having this class and this feature
+        if pcf != 0:
+            temp_H = - pf * pcf * math.log(pcf, 2)
+            Hc_feature += temp_H
+    # overall entropy (among the classes) - entropy of the feature  
+    ig = Hc - Hc_feature
+    return ig
+
+'''
+    Applies MLDP discretization to numeric values.
+    MLDP Implementation: https://github.com/navicto/Discretization-MDLPC 
+'''
+def get_mldp_discretization(X, y, ignore_columns=[]):
+    X_orig = X.copy()
+    X = X.to_numpy()
+    y = y.to_numpy()
+    
+    numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+    numeric_features_names = list(X_orig.select_dtypes(include=numerics)) # columns names
+    numeric_features = [X_orig.columns.get_loc(col) for col in numeric_features_names] # columns indexes
+    discretizer = MDLP_Discretizer(features=numeric_features)
+    discretizer.fit(X, y)
+    X_discretized = discretizer.transform(X)
+    return pd.DataFrame(X_discretized, columns=numeric_features_names)
+
+'''
+    Feature selection method based on the information gain ranking of the attributes. 
+    Returns the n attributes with the highest information gain values and their information gain (2 lists)
+'''
+def IGAR(n, X, y):
+    features = {}
+    selected_features = []
+    information_gains = []
+    # it is necessary to discretize numeric values 
+    #  before calculating the information gain
+    X_discretized = get_mldp_discretization(X, y)
+    for column in X_discretized.columns:
+        feature = X_discretized[column]
+        information_gain = get_information_gain(list(y), list(feature))
+        features[column] = information_gain
+
+    # order the attributes according to descending information gain
+    for name, ig in sorted(features.items(), key=lambda x: x[1], reverse=True):
+        selected_features.append(name)
+        information_gains.append(ig)
+    if len(selected_features) >= n:
+        return selected_features[:n], information_gains[:n]
+    else:
+        return [],[]
+
+'''
+Collect accuracy for each n
+Vary the n parameter from 1 to 84 (min attributes)
+    For each n:
+        For each project:
+            Execute the IGAR using n
+            Execute the prediction (calculate accuracy and normalized improvement)
+'''
+def IGAR_tuning(prediction_algorithm, projects, non_features_columns, min_n, max_n, save=False):
+    columns = ['project', 'n', 'accuracy', 'accuracy_selected', 'orig_attr']
+    data = []
+    for n in range(min_n, max_n+1):
+        for project in projects:
+            row = []
+            project = project.replace("/", "__")
+            project_dataset = f"{configs.PROJECTS_DATA}/{project}-training.csv"
+            df = pd.read_csv(project_dataset)
+            df_clean = df.dropna()
+            
+            scores = {}
+            scores_text= ''
+            target_names = sorted(df['developerdecision'].unique())
+            if len(df_clean) >= 10:
+                y = df_clean["developerdecision"].copy()
+                df_clean = df_clean.drop(columns=['developerdecision'])
+                df_clean = df_clean.drop(columns=non_features_columns)
+                features = list(df_clean.columns)
+                X = df_clean[features]
+
+
+                scores = cross_val_score(prediction_algorithm, X, y, cv=10)
+                default_accuracy = scores.mean()
+
+                selected_attributes, attributes_ranking = IGAR(n, X, y)
+                X_selected = X[selected_attributes]
+
+                original_features = X.shape[1]
+                nr_selected_features = X_selected.shape[1]
+                scores = cross_val_score(prediction_algorithm, X_selected, y, cv=10)
+                new_accuracy = scores.mean()
+
+                # print(f'project: {project} n: {n}  default: {default_accuracy}  new: {new_accuracy}  attr: {X.shape[1]}  new_attr: {X_selected.shape[1]}')
+                data.append([project, n, default_accuracy, new_accuracy, X.shape[1]])
+    df = pd.DataFrame(data, columns=columns)
+    if save:
+        df.to_csv('IGAR_tuning.csv', index=False)
+    return df
+
+def compute_IGAR_tuning_summary(IGAR_results, min_n, max_n):
+    wins = {}
+    ranking = {}
+    for n in range(min_n, max_n+1):
+        wins[n] = 0
+        ranking[n] = 0
+
+    for project in IGAR_results['project'].unique():
+        
+        # find number of wins
+        project_results = IGAR_results[IGAR_results['project']==project].copy()
+        best_result = project_results.loc[project_results['accuracy_selected'].idxmax()]
+        n = best_result['n']
+        wins[n] += 1
+        
+        # accumulate ranking 
+        project_results['ranking'] = project_results['accuracy_selected'].rank(ascending=False)
+        for index, row in project_results.iterrows():
+            ranking[row['n']] += row['ranking']
+
+        # average the accumulated rankings
+        n_projects = len(IGAR_results['project'].unique())
+        for n, accumulated_rank in ranking.items():
+            average = accumulated_rank/n_projects
+            ranking[n] = average
+                
+        columns = ['n', 'average_default_accuracy', 'average_accuracy', 'improvement', 'average_ranking', 'number_wins']
+        data = []
+        for n in range(min_n, max_n+1):
+            row = [n]
+            
+            n_results = IGAR_results[IGAR_results['n'] == n]
+            average_accuracy = n_results['accuracy_selected'].mean()
+            default_accuracy = n_results['accuracy'].mean()
+            improvement = get_normalized_improvement(average_accuracy, default_accuracy)
+            
+            row.append(default_accuracy)
+            row.append(average_accuracy)
+            row.append(improvement)
+            row.append(ranking[n])
+            row.append(wins[n])
+            data.append(row)
+
+    return pd.DataFrame(data, columns=columns)
