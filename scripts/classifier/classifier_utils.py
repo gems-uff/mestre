@@ -755,16 +755,13 @@ def plot_validation_curves(projects, estimator, parameter, param_range, non_feat
 
 def projects_feature_selection(projects, non_features_columns, algorithm, feature_selection_strategy):
     results = []
-    selected_features_count = {}
+    selected_features_records = []
     for project in projects:
         project = project.replace("/", "__")
         project_dataset = f"{configs.PROJECTS_DATA}/{project}-training.csv"
         df = pd.read_csv(project_dataset)
         df_clean = df.dropna()
         
-        scores = {}
-        scores_text= ''
-        target_names = sorted(df['developerdecision'].unique())
         if len(df_clean) >= 10:
             y = df_clean["developerdecision"].copy()
             df_clean = df_clean.drop(columns=['developerdecision'])
@@ -778,14 +775,24 @@ def projects_feature_selection(projects, non_features_columns, algorithm, featur
             if feature_selection_strategy == 'tree':
                 algorithm.fit(X,y)
                 selection_algorithm = SelectFromModel(algorithm, prefit=True)
-                X_selected = selection_algorithm.transform(X)
+                selection_algorithm.transform(X)
+                selected_features = get_list_selected_features(selection_algorithm, X)
+                X_selected = X[selected_features]
             elif feature_selection_strategy == 'recursive':
                 min_features_to_select = 1
                 selection_algorithm = RFECV(estimator=algorithm, step=1, cv=5,
                   scoring='accuracy', n_jobs=5,
                   min_features_to_select=min_features_to_select)
                 selection_algorithm.fit(X, y)
-                X_selected = selection_algorithm.transform(X)
+                selection_algorithm.transform(X)
+                selected_features = get_list_selected_features(selection_algorithm, X)
+                X_selected = X[selected_features]
+            elif feature_selection_strategy == 'IGAR':
+                # TODO: implement the IGAR using sklearn interface (to use the fit/transform functions)
+                # uses the n value found in the IGAR tuning notebook
+                n = 65
+                selected_features, attributes_ranking = IGAR(n, X, y)
+                X_selected = X[selected_features]
             else:
                 print('Invalid feature selection strategy')
                 return None
@@ -795,9 +802,10 @@ def projects_feature_selection(projects, non_features_columns, algorithm, featur
             new_accuracy = scores.mean()
             normalized_improvement = get_normalized_improvement(new_accuracy, default_accuracy)
 
-            selected_features = get_list_selected_features(selection_algorithm, X)
-            selected_features_count = count_selected_features(selected_features, selected_features_count)
-            
+            for selected_feature in selected_features:
+                information_gain = get_information_gain(list(y), list(X_selected[selected_feature]))
+                selected_features_records.append([project, selected_feature, information_gain, feature_selection_strategy])
+
             results.append([project, len(df_clean), original_features, nr_selected_features, default_accuracy, new_accuracy, normalized_improvement])
         else:
             results.append([project, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN])
@@ -805,20 +813,12 @@ def projects_feature_selection(projects, non_features_columns, algorithm, featur
     results = pd.DataFrame(results, columns=['project', 'N', '# attr.', '# attr. fs', 'accuracy', 'accuracy_fs', 'improvement'])
     results = pd.concat([results, get_overall_feature_selection(results)], ignore_index=True)
     results = results.round(3)
-    selected_features_count = pd.DataFrame.from_dict(selected_features_count, orient='index', columns=['Count'])
-    return results, selected_features_count
+    
+    return results, selected_features_records
 
 def get_list_selected_features(selection_algorithm, X):
     selected_features= X.columns[(selection_algorithm.get_support())]
     return list(selected_features)
-
-def count_selected_features(selected_features, current_count):
-    for selected_feature in selected_features:
-        if selected_feature in current_count:
-            current_count[selected_feature] += 1
-        else:
-            current_count[selected_feature] = 1
-    return current_count
 
 def get_overall_feature_selection(df):
     n = df['N'].sum()
@@ -963,27 +963,89 @@ def compute_IGAR_tuning_summary(IGAR_results, min_n, max_n):
         for index, row in project_results.iterrows():
             ranking[row['n']] += row['ranking']
 
-        # average the accumulated rankings
-        n_projects = len(IGAR_results['project'].unique())
-        for n, accumulated_rank in ranking.items():
-            average = accumulated_rank/n_projects
-            ranking[n] = average
-                
-        columns = ['n', 'average_default_accuracy', 'average_accuracy', 'improvement', 'average_ranking', 'number_wins']
-        data = []
-        for n in range(min_n, max_n+1):
-            row = [n]
+    # average the accumulated rankings
+    n_projects = len(IGAR_results['project'].unique())
+    for n, accumulated_rank in ranking.items():
+        average = accumulated_rank/n_projects
+        ranking[n] = average
             
-            n_results = IGAR_results[IGAR_results['n'] == n]
-            average_accuracy = n_results['accuracy_selected'].mean()
-            default_accuracy = n_results['accuracy'].mean()
-            improvement = get_normalized_improvement(average_accuracy, default_accuracy)
-            
-            row.append(default_accuracy)
-            row.append(average_accuracy)
-            row.append(improvement)
-            row.append(ranking[n])
-            row.append(wins[n])
-            data.append(row)
+    columns = ['n', 'average_default_accuracy', 'average_accuracy', 'improvement', 'average_ranking', 'number_wins']
+    data = []
+    for n in range(min_n, max_n+1):
+        row = [n]
+        
+        n_results = IGAR_results[IGAR_results['n'] == n]
+        average_accuracy = n_results['accuracy_selected'].mean(skipna=True)
+        default_accuracy = n_results['accuracy'].mean(skipna=True)
+        improvement = get_normalized_improvement(average_accuracy, default_accuracy)
+        
+        row.append(default_accuracy)
+        row.append(average_accuracy)
+        row.append(improvement)
+        row.append(ranking[n])
+        row.append(wins[n])
+        data.append(row)
 
     return pd.DataFrame(data, columns=columns)
+
+def is_authorship_feature(feature_name):
+    if '.' in feature_name or '@' in feature_name:
+        return True
+
+def is_content_feature(feature_name):
+    all_constructors = ['Class declaration', 'Return statement', 'Array access', 'Cast expression', 
+                            'Attribute', 'Array initializer', 'Do statement', 'Case statement', 'Other', 'Method signature', 'Break statement',
+                            'TypeDeclarationStatement', 'Comment', 'Method invocation', 'Package declaration', 'While statement', 
+                            'Interface signature', 'Variable', 'Enum value', 'Class signature', 'Annotation', 'Method interface',
+                            'Interface declaration', 'Synchronized statement', 'Throw statement', 'Switch statement', 'Catch clause',
+                            'Try statement', 'Annotation declaration', 'For statement', 'Enum declaration', 'Enum signature', 'Assert statement',
+                            'Static initializer', 'If statement', 'Method declaration', 'Continue statement', 'Import', 'Blank']
+    return feature_name in all_constructors
+
+#   input list columns = project | attribute | information gain | selection method
+def get_attribute_selection_ranking(attributes_stats, method):
+    results = []
+    df = pd.DataFrame(attributes_stats, columns=['project', 'attribute', 'information_gain', 'method'])
+    selected_df = df[df['method'] == method].copy()
+    attributes = list(selected_df['attribute'].unique())
+    for attribute in attributes:
+        attribute_results = selected_df[selected_df['attribute'] == attribute].copy()
+        attribute_results['ranking'] = attribute_results['information_gain'].rank(method='min')
+        times_selected = len(attribute_results)
+        average_information_gain = attribute_results['information_gain'].mean(skipna=True)
+        average_ranking = attribute_results['ranking'].mean(skipna=True)
+        results.append([attribute, times_selected, average_information_gain, average_ranking])
+    
+    # process authorship related attributes grouping
+    information_gain_sum = 0
+    times_selected_sum = 0
+    ranking_sum = 0
+    count = 0
+    for result in results:
+        if is_authorship_feature(result[0]):
+            times_selected_sum += result[1]
+            information_gain_sum += result[2]
+            ranking_sum += result[3]
+            count+=1
+    information_gain_average = information_gain_sum / count
+    times_selected_average = times_selected_sum / count
+    ranking_average = ranking_sum / count
+    results.append(['chunk_author', times_selected_average, information_gain_average, ranking_average])
+
+    # process content related attributes grouping
+    information_gain_sum = 0
+    times_selected_sum = 0
+    ranking_sum = 0
+    count = 0
+    for result in results:
+        if is_content_feature(result[0]):
+            times_selected_sum += result[1]
+            information_gain_sum += result[2]
+            ranking_sum += result[3]
+            count+=1
+    information_gain_average = information_gain_sum / count
+    times_selected_average = times_selected_sum / count
+    ranking_average = ranking_sum / count
+    results.append(['content_constructor', times_selected_average, information_gain_average, ranking_average])
+   
+    return pd.DataFrame(results, columns=['attribute', 'count_selected', 'average_information_gain', 'average_ranking'])
