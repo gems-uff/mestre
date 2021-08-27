@@ -1008,9 +1008,9 @@ def get_attribute_selection_ranking(attributes_stats, method):
     df = pd.DataFrame(attributes_stats, columns=['project', 'attribute', 'information_gain', 'method'])
     selected_df = df[df['method'] == method].copy()
     attributes = list(selected_df['attribute'].unique())
+    selected_df['ranking'] = selected_df.groupby('project')['information_gain'].rank('dense', ascending=False)
     for attribute in attributes:
         attribute_results = selected_df[selected_df['attribute'] == attribute].copy()
-        attribute_results['ranking'] = attribute_results['information_gain'].rank(method='min')
         times_selected = len(attribute_results)
         average_information_gain = attribute_results['information_gain'].mean(skipna=True)
         average_ranking = attribute_results['ranking'].mean(skipna=True)
