@@ -777,7 +777,6 @@ def projects_feature_selection(projects, non_features_columns, algorithm, featur
                 selection_algorithm = SelectFromModel(algorithm, prefit=True)
                 selection_algorithm.transform(X)
                 selected_features = get_list_selected_features(selection_algorithm, X)
-                X_selected = X[selected_features]
             elif feature_selection_strategy == 'recursive':
                 min_features_to_select = 1
                 selection_algorithm = RFECV(estimator=algorithm, step=1, cv=5,
@@ -786,16 +785,16 @@ def projects_feature_selection(projects, non_features_columns, algorithm, featur
                 selection_algorithm.fit(X, y)
                 selection_algorithm.transform(X)
                 selected_features = get_list_selected_features(selection_algorithm, X)
-                X_selected = X[selected_features]
             elif feature_selection_strategy == 'IGAR':
                 # TODO: implement the IGAR using sklearn interface (to use the fit/transform functions)
                 # uses the n value found in the IGAR tuning notebook
                 n = 65
                 selected_features, attributes_ranking = IGAR(n, X, y)
-                X_selected = X[selected_features]
             else:
                 print('Invalid feature selection strategy')
                 return None
+
+            X_selected = get_selected_data(X, selected_features)
             original_features = X.shape[1]
             nr_selected_features = X_selected.shape[1]
             scores = cross_val_score(algorithm, X_selected, y, cv=10)
@@ -896,10 +895,25 @@ def IGAR(n, X, y):
     for name, ig in sorted(features.items(), key=lambda x: x[1], reverse=True):
         selected_features.append(name)
         information_gains.append(ig)
+    if n == 0:
+        return selected_features, information_gains
     if len(selected_features) >= n:
         return selected_features[:n], information_gains[:n]
     else:
         return [],[]
+
+'''
+    returns only the selected data based on the original dataset and a list of selected features
+'''
+def get_selected_data(original_X, selected_features):
+    new_selected_attributes = []
+
+    # we need to make sure that the order of the columns is not changed
+    # https://github.com/scikit-learn/scikit-learn/issues/5394
+    for column in original_X.columns:
+        if column in selected_features:
+            new_selected_attributes.append(column)
+    return original_X[new_selected_attributes]
 
 '''
 Collect accuracy for each n
@@ -914,7 +928,6 @@ def IGAR_tuning(prediction_algorithm, projects, non_features_columns, min_n, max
     data = []
     for n in range(min_n, max_n+1):
         for project in projects:
-            row = []
             project = project.replace("/", "__")
             project_dataset = f"{configs.PROJECTS_DATA}/{project}-training.csv"
             df = pd.read_csv(project_dataset)
@@ -932,7 +945,7 @@ def IGAR_tuning(prediction_algorithm, projects, non_features_columns, min_n, max
                 default_accuracy = scores.mean()
 
                 selected_attributes, attributes_ranking = IGAR(n, X, y)
-                X_selected = X[selected_attributes]
+                X_selected = get_selected_data(X, selected_attributes)
 
                 scores = cross_val_score(prediction_algorithm, X_selected, y, cv=5)
                 new_accuracy = scores.mean()
