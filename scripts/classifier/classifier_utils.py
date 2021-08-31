@@ -70,7 +70,11 @@ class ProjectsResults:
             if score_metric in project_df:
                 project_df_classes_recall = project_df[score_metric]
                 if target_name in project_df_classes_recall:
-                    row.append(project_df_classes_recall[target_name])
+                    metric_value = project_df_classes_recall[target_name]
+                    if metric_value != 0:
+                        row.append(project_df_classes_recall[target_name])
+                    else:
+                        row.append(np.nan)
                 else:
                     row.append(np.nan)
                 rows.append(row)
@@ -123,6 +127,15 @@ class IgnoreChunkAttributes:
 
 def get_overall_accuracy_per_class(df):
     values = ['Overall']
+    
+    # we first replace 0's with NaN, since we dont want to include 
+    #   instances where there are not occurrences of the class we want to measure
+    # e.g.: a project with 100 instances, where all of them are class X.
+    #   if our classifier predicted all classes to be Y, then
+    #   the precision/recall/f-measure for class Y will be 0.
+    #   However, we dont want to count it as 0 when taking the average among the classifiers
+    #       because it is not actually 0, but NaN (division by 0)
+    df = df.replace(0, np.NaN)
     for column in df.columns:
         if column != 'project':
             values.append(df[column].mean(skipna=True))
