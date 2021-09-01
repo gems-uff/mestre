@@ -1,6 +1,8 @@
 import pandas as pd
 import exploratory_analysis.utils as utils
 import os
+from classifier.MDLP import MDLP_Discretizer
+
 
 def add_remaining_columns(original_df, discretized_df):
     original_columns = original_df.columns
@@ -33,6 +35,38 @@ def discretize_df(df, type='log10'):
     discretized_df = add_remaining_columns(df, discretized_df)
     return discretized_df
 
+def get_mdlp_discretization(X, y):
+    X_orig = X.copy()
+    X = X.to_numpy()
+    y = y.to_numpy()
+    
+    numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+    numeric_features_names = list(X_orig.select_dtypes(include=numerics)) # columns names
+    numeric_features = [X_orig.columns.get_loc(col) for col in numeric_features_names] # columns indexes
+    discretizer = MDLP_Discretizer(features=numeric_features)
+    discretizer.fit(X, y)
+    X_discretized = discretizer.transform(X)
+    return pd.DataFrame(X_discretized, columns=numeric_features_names)
+
+def discretize_mdlp(df):
+    non_features_columns = ["chunk_id", "line_start", "line_end", "line_separator", "kind_conflict", "url", "project"]
+    non_features_columns.extend(["project_user", "project_name", "path", "file_name", "sha", "leftsha", "rightsha", "basesha"])
+    df_discretized = df.copy()
+
+    # clean invalid values
+    df_discretized = df_discretized[df_discretized['developerdecision']!='UnknownConcatenation']
+    y = df_discretized["developerdecision"].copy()
+    df_discretized = df_discretized.drop(columns=['developerdecision'])
+    df_discretized = df_discretized.drop(columns=non_features_columns)
+    features = list(df_discretized.columns)
+
+    X = df_discretized[features]
+    
+    
+    discretized_df = get_mdlp_discretization(X,y)
+    discretized_df = add_remaining_columns(df, discretized_df)
+    return discretized_df
+
 def print_dataset_info(df):
     total_chunks = len(df)
     total_projects = len(pd.unique(df['project']))
@@ -52,6 +86,9 @@ if not os.path.exists('../data/projects/discretized_log10'):
 if not os.path.exists('../data/projects/discretized_log2'):
     os.mkdir('../data/projects/discretized_log2')
 
+if not os.path.exists('../data/projects/discretized_mdlp'):
+    os.mkdir('../data/projects/discretized_mdlp')
+
 for project in projects:
     print(f'Processing project {project}')
     project_name = project.replace('/','__')
@@ -60,21 +97,33 @@ for project in projects:
 
     df_project_training_log10 = discretize_df(df_project_training, 'log10')
     df_project_training_log2 = discretize_df(df_project_training, 'log2')
+    df_project_training_mdlp = discretize_mdlp(df_project_training)
+
     df_project_training_log10.to_csv(f'../data/projects/discretized_log10/{project_name}-training.csv', index=False)
     df_project_training_log2.to_csv(f'../data/projects/discretized_log2/{project_name}-training.csv', index=False)
+    df_project_training_mdlp.to_csv(f'../data/projects/discretized_mdlp/{project_name}-training.csv', index=False)
 
     df_project_test_log10 = discretize_df(df_project_test, 'log10')
     df_project_test_log2 = discretize_df(df_project_test, 'log2')
+    df_project_test_mdlp = discretize_mdlp(df_project_test)
+
     df_project_test_log10.to_csv(f'../data/projects/discretized_log10/{project_name}-test.csv', index=False)
     df_project_test_log2.to_csv(f'../data/projects/discretized_log2/{project_name}-test.csv', index=False)
+    df_project_training_mdlp.to_csv(f'../data/projects/discretized_mdlp/{project_name}-test.csv', index=False)
 
 print('Processing complete dataset...')
 df_training_log10 = discretize_df(df_training, 'log10')
 df_training_log2 = discretize_df(df_training, 'log2')
+df_training_mdlp = discretize_mdlp(df_training)
+
 df_training_log10.to_csv(f'../data/dataset-training_log10.csv', index=False)
 df_training_log2.to_csv(f'../data/dataset-training_log2.csv', index=False)
+df_training_mdlp.to_csv(f'../data/dataset-training_mdlp.csv', index=False)
 
 df_test_log10 = discretize_df(df_test, 'log10')
 df_test_log2 = discretize_df(df_test, 'log2')
+df_test_mdlp = discretize_mdlp(df_test)
+
 df_test_log10.to_csv(f'../data/dataset-test_log10.csv', index=False)
 df_test_log2.to_csv(f'../data/dataset-test_log2.csv', index=False)
+df_test_mdlp.to_csv(f'../data/dataset-test_mdlp.csv', index=False)

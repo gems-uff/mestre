@@ -872,10 +872,10 @@ def get_information_gain(class_, feature):
     return ig
 
 '''
-    Applies MLDP discretization to numeric values.
-    MLDP Implementation: https://github.com/navicto/Discretization-MDLPC 
+    Applies MDLP discretization to numeric values.
+    MDLP Implementation: https://github.com/navicto/Discretization-MDLPC 
 '''
-def get_mldp_discretization(X, y, ignore_columns=[]):
+def get_mdlp_discretization(X, y):
     X_orig = X.copy()
     X = X.to_numpy()
     y = y.to_numpy()
@@ -891,14 +891,18 @@ def get_mldp_discretization(X, y, ignore_columns=[]):
 '''
     Feature selection method based on the information gain ranking of the attributes. 
     Returns the n attributes with the highest information gain values and their information gain (2 lists)
+    if n is zero we dont select any feature
 '''
 def IGAR(n, X, y):
     features = {}
     selected_features = []
     information_gains = []
-    # it is necessary to discretize numeric values 
-    #  before calculating the information gain
-    X_discretized = get_mldp_discretization(X, y)
+    if n != 0:
+        # it is necessary to discretize numeric values 
+        #  before calculating the information gain
+        X_discretized = get_mdlp_discretization(X, y)
+    else:
+        X_discretized = X
     for column in X_discretized.columns:
         feature = X_discretized[column]
         information_gain = get_information_gain(list(y), list(feature))
