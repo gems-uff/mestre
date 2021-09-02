@@ -1,3 +1,5 @@
+![Data pipeline through scripts](scripts_graph.png?raw=true "Data pipeline through scripts")
+
 ## download_dataset_files.py
 
 Downloads the dataset from an external source and puts it into a folder named data in the repository root.
