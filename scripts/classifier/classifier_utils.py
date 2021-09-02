@@ -30,11 +30,13 @@ class ProjectResults:
         return pd.DataFrame(self.confusion_matrix, index=self.target_names, columns=self.target_names)
 
 class ProjectsResults:
-    def __init__(self, algorithm, projects, non_feature_columns, projects_data_path=configs.PROJECTS_DATA, drop_na=True, replace_na=False, ablation=False, ablation_group='', ablation_mode='remove'):
+    def __init__(self, algorithm, projects, non_feature_columns, projects_data_path=configs.PROJECTS_DATA,
+        drop_na=True, replace_na=False, ablation=False, ablation_group='', ablation_mode='remove', training=True):
         self.results = {}
         self.algorithm = algorithm
         self.evaluated_projects=0
-        self.evaluate_projects(projects, non_feature_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group, ablation_mode)
+        self.evaluate_projects(projects, non_feature_columns, algorithm, projects_data_path, drop_na, replace_na, ablation,
+             ablation_group, ablation_mode, training)
     
     def add_project_result(self, project_result):
         self.results[project_result.project_name] = project_result
@@ -49,9 +51,11 @@ class ProjectsResults:
             df = pd.concat([df, get_overall_accuracy(df)], ignore_index=True)
         return df
 
-    def evaluate_projects(self, projects, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group, ablation_mode):
+    def evaluate_projects(self, projects, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation,
+         ablation_group, ablation_mode, training):
         for project in projects:
-            project_results = evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group, ablation_mode)
+            project_results = evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na, replace_na,
+             ablation, ablation_group, ablation_mode, training)
             if not np.isnan(project_results.results.iloc[0]['accuracy']):
                 self.evaluated_projects+=1
             self.add_project_result(project_results)
@@ -180,16 +184,22 @@ def get_project_class_distribution(project_dataset, project_name, normalized=Tru
     df_columns.extend(developer_decisions)
     return pd.DataFrame([row], columns=df_columns)
 
-def get_projects_class_distribution(projects, normalized=True, drop_na=True, include_overall=False):
+def get_projects_class_distribution(projects, normalized=True, drop_na=True, include_overall=False, training=True):
     results = []
     for project in projects:
         project_name = project.replace("/", "__")
-        project_dataset_path = f"../../data/projects/{project_name}-training.csv"
+        if training:
+            project_dataset_path = f"../../data/projects/{project_name}-training.csv"
+        else:
+            project_dataset_path = f"../../data/projects/{project_name}-test.csv"
         df = pd.read_csv(project_dataset_path)
         results.append(get_project_class_distribution(df, project_name, normalized, drop_na))
     if include_overall:
             project_name = 'Overall'
-            dataset_path = f"../../data/dataset-training.csv"
+            if training:
+                dataset_path = f"../../data/dataset-training.csv"
+            else:
+                dataset_path = f"../../data/dataset-test.csv"
             df = pd.read_csv(dataset_path)
             results.append(get_project_class_distribution(df, project_name, normalized, drop_na))
     results = pd.concat(results, ignore_index=True)
@@ -211,7 +221,7 @@ def get_overall_accuracy(results):
     result = pd.DataFrame(rows, columns=results.columns)
     return result
 
-def predict(algorithm, X, y):
+def cross_validate(algorithm, X, y):
     y_pred = cross_val_predict(algorithm, X, y, cv=10)
     return y_pred
 
@@ -375,16 +385,23 @@ def replace_na_values(df):
 # Calculate metrics for each label (class), and find their average weighted by support (the number of true instances for each label).
 # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_recall_fscore_support.html#sklearn.metrics.precision_recall_fscore_support
 # macro metrics: Calculate metrics for each label, and find their unweighted mean. This does not take label imbalance into account.
-def evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na=True, replace_na=False, ablation=False, ablation_group='', ablation_mode='remove'):
+def evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na=True, replace_na=False, ablation=False,
+     ablation_group='', ablation_mode='remove', training=True):
     results = []
     class_names = []
     project = project.replace("/", "__")
     project_dataset = f"{projects_data_path}/{project}-training.csv"
+    if not training:
+        project_dataset_test = f"{projects_data_path}/{project}-test.csv"
+        df_test = pd.read_csv(project_dataset_test)
+
     df = pd.read_csv(project_dataset)
     if replace_na:
         df = replace_na_values(df)
     if drop_na:
         df_clean = df.dropna()
+        if not training:
+            df_test_clean = df_test.dropna()
     else:
         df_clean = df
     if ablation:
@@ -398,21 +415,31 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
         # print(ignored_attributes.ignored_columns)
     # print(len(df_clean.columns))
     majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
+    if not training:
+        majority_class = get_majority_class_percentage(df_test_clean, 'developerdecision')
     scores = {}
     scores_text= ''
     conf_matrix = []
-    target_names = sorted(df['developerdecision'].unique())
     if len(df_clean) >= 10:
-        y = df_clean["developerdecision"].copy()
+        y_train = df_clean["developerdecision"].copy()
         df_clean = df_clean.drop(columns=['developerdecision'])
         df_clean = df_clean.drop(columns=non_features_columns)
         features = list(df_clean.columns)
-        X = df_clean[features]
-#         print(f"project: {project} \t len df: {len(df)} \t len df clean: {len(df_clean)} \t len x: {len(X)}  \t len y: {len(y)}")
-        # scores = cross_val_score(model, X, y, cv=10)
-        # accuracy = scores.mean()
-        # std_dev = scores.std()
-        y_pred = predict(algorithm, X, y)
+        X_train = df_clean[features]
+
+        if not training:
+            y = df_test_clean['developerdecision'].copy()
+            df_test_clean = df_test_clean.drop(columns=['developerdecision'])
+            df_test_clean = df_test_clean.drop(columns=non_features_columns)
+            X_test = df_test_clean[features]
+
+            algorithm.fit(X_train, y_train)
+            y_pred = algorithm.predict(X_test)
+        
+        else:
+            y_pred = cross_validate(algorithm, X_train, y_train)
+            y = y_train
+        
         scores = get_prediction_scores(y, y_pred)
         scores_text = get_prediction_scores(y, y_pred, False)
         class_names = get_all_involved_classes(y,y_pred)
@@ -427,7 +454,8 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
         results.append([project, len(df), len(df_clean), precision, recall, f1_score, accuracy, majority_class, normalized_improvement])
     else:
         results.append([project, len(df), len(df_clean), np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN])
-    results = pd.DataFrame(results, columns=['project', 'observations', 'observations (wt NaN)', 'precision', 'recall', 'f1-score', 'accuracy', 'baseline (majority)', 'improvement'])
+    results = pd.DataFrame(results, columns=['project', 'observations', 'observations (wt NaN)', 'precision', 'recall', 'f1-score',
+         'accuracy', 'baseline (majority)', 'improvement'])
     
     results = results.round(3)
     return ProjectResults(project, results, scores, scores_text, conf_matrix, class_names)
