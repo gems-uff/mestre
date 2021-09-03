@@ -17,8 +17,8 @@ digraph mygraph {
     {"./data/macTool_outuput.csv" "Repos folder"} -> "collect_merge_type.py" -> "./data/merge_types_data.csv"
     {"./data/collected_attributes1.csv" "./data/collected_attributes2.csv" "./data/authors_self_conflicts.csv" "./data/merge_types_data.csv" "./data/macTool_output.csv"} -> "assemble_dataset.py" -> "./data/dataset.csv"
     {"./data/LABELLED_DATASET.csv" "./data/number_conflicting_chunks.csv" "./data/dataset.csv"} -> "select_projects.py" -> {"./data/selected_dataset.csv" "./data/SELECTED_LABELLED_DATASET.csv"}
-    "./data/selected_dataset.csv" -> "transform_boolean_attributes.py" -> "./data/selected_dataset2.csv"
-    {"./data/selected_dataset2.csv" "./data/chunk_authors.csv"} -> "process_projects_dataset.py" -> {"Two csv files (training/test) for each repo" "./data/dataset-training.csv" "./data/dataset-test.csv"}
+    "./data/selected_dataset.csv" -> "transform_boolean_attributes.py" -> "./data/selected_dataset_2.csv"
+    {"./data/selected_dataset_2.csv" "./data/chunk_authors.csv"} -> "process_projects_dataset.py" -> {"Two csv files (training/test) for each repo" "./data/dataset-training.csv" "./data/dataset-test.csv"}
     {"./data/number_conflicting_chunks.csv" "./data/number_chunks__updated_repos.csv" "./data/projects_data_from_github_api.csv"} -> "github_api_data_preprocess.py" -> "./data/api_data.csv"
     "extract_initial_dataset.py" [fillcolor=gray45]
     "concatenation_relabel.py" [fillcolor=gray45]
@@ -46,7 +46,7 @@ digraph mygraph {
     "./data/number_conflicting_chunks.csv" [fillcolor=gray80]
     "./data/selected_dataset.csv" [fillcolor=gray80]
     "./data/SELECTED_LABELLED_DATASET.csv" [fillcolor=gray80]
-    "./data/selected_dataset2.csv" [fillcolor=gray80]
+    "./data/selected_dataset_2.csv" [fillcolor=gray80]
     "./data/dataset-training.csv" [fillcolor=gray80]
     "./data/dataset-test.csv" [fillcolor=gray80]
     "./data/number_chunks__updated_repos.csv" [fillcolor=gray80]
