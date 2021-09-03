@@ -1,11 +1,13 @@
 -- Contents
--- 1.	INITIAL DATASET FOR MINING	1
--- 2.	NUMBER OF CONFLICTING CHUNKS PER PROJECT:	1
--- 3.	NUMBER OF TYPES OF DEVELOPER DECISION PER MERGE	2
--- 4.	NUMBER OF CONFLICTING CHUNKS PER MERGE	4
--- 5.	NUMBER OF DEVELOPER DECISION TYPES PER MERGE	4
--- 6.	NUMBER OF DEVELOPER DECISION TYPES PER CONFLICTING FILE	6
-
+-- 1.	INITIAL DATASET FOR MINING
+-- 2.	NUMBER OF CONFLICTING CHUNKS PER PROJECT: (data/number_conflicting_chunks.csv)
+-- 3.	NUMBER OF TYPES OF DEVELOPER DECISION PER MERGE
+-- 4.	NUMBER OF CONFLICTING CHUNKS PER MERGE
+-- 5.	NUMBER OF DEVELOPER DECISION TYPES PER MERGE (data/developerdecision_merge.csv)
+-- 6.	NUMBER OF DEVELOPER DECISION TYPES PER CONFLICTING FILE (data/developerdecision_file.csv)
+-- 7.	NUMBER OF MERGES PER PROJECT
+-- 8.	NUMBER OF MERGES PER SELECTED PROJECT (data/number_merges_project_selected.csv)
+-- 9	NUMBER OF CONFLICTING MERGES PER SELECTED PROJECT (data/number_conflicting_merges_project_selected.csv)
 
 
 -- INITIAL DATASET FOR MINING  
@@ -399,3 +401,70 @@ where
 		and r.status = 'CONFLICTING')
 order by
 	chunks desc;
+
+-- NUMBER OF MERGES PER PROJECT
+select 
+	p.id,
+	replace(p.htmlurl, 'https://github.com/', '') as project,
+	count(r.id) as nr_merges
+	
+		
+from revision r
+inner join project p on p.id = r.project_id 
+where
+p.fork = false and
+p.analyzed = true and 
+p. id in (
+select 
+	distinct p.id
+	
+from conflictingchunk cc 
+inner join conflictingfile cf on cc.conflictingfile_id = cf.id
+inner join revision r on r.id = cf.revision_id
+inner join project p on p.id = r.project_id
+where cf.filetype='java' and 
+p.fork = false and
+p.analyzed = true
+)
+group by p.id;
+
+
+-- ID OF SELECTED PROJECTS
+(65885, 185026, 206437, 217482, 223355, 507775, 726492, 762119, 961036, 1006053, 1022930, 1775980, 1795594, 
+1965842, 1971081, 2045207, 2138392, 2230984, 2524488, 2709026, 2902099, 3129899, 3405664, 3518171, 3518362, 
+3661343, 4212733, 4310801, 50229487)
+
+-- NUMBER OF MERGES PER SELECTED PROJECT
+select 
+	p.id,
+	replace(p.htmlurl, 'https://github.com/', '') as project,
+	count(r.id) as nr_merges
+	
+		
+from revision r
+inner join project p on p.id = r.project_id 
+where
+p.fork = false and
+p.analyzed = true and 
+p. id in (65885, 185026, 206437, 217482, 223355, 507775, 726492, 762119, 961036, 1006053, 1022930, 1775980, 1795594, 
+1965842, 1971081, 2045207, 2138392, 2230984, 2524488, 2709026, 2902099, 3129899, 3405664, 3518171, 3518362, 
+3661343, 4212733, 4310801, 50229487)
+group by p.id;
+
+-- NUMBER OF CONFLICTING MERGES PER SELECTED PROJECT
+select 
+	p.id,
+	replace(p.htmlurl, 'https://github.com/', '') as project,
+	count(r.id) as nr_conflicting_merges
+	
+		
+from revision r
+inner join project p on p.id = r.project_id 
+where
+p.fork = false and
+p.analyzed = true and
+r.status = 'CONFLICTING' and
+p. id in (65885, 185026, 206437, 217482, 223355, 507775, 726492, 762119, 961036, 1006053, 1022930, 1775980, 1795594, 
+1965842, 1971081, 2045207, 2138392, 2230984, 2524488, 2709026, 2902099, 3129899, 3405664, 3518171, 3518362, 
+3661343, 4212733, 4310801, 50229487)
+group by p.id;
