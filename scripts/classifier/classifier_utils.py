@@ -86,6 +86,27 @@ class ProjectsResults:
         if include_overall:
             df = pd.concat([df, get_overall_accuracy_per_class(df)], ignore_index=True)
         return df
+    
+    def get_accuracy_per_class_df(self, target_names, include_overall=False):
+        rows = []
+        columns = ['project']
+        columns.extend(target_names)
+        for project_name, project in self.results.items():
+            row = []
+            row.append(project_name)
+            project_df = project.get_scores_df()
+            if 'recall' in project_df:
+                project_df_classes_recall = project_df['recall']
+                for class_name in target_names:
+                    if class_name in project_df_classes_recall:
+                        row.append(project_df_classes_recall[class_name])
+                    else:
+                        row.append(np.nan)
+                rows.append(row)
+        df = pd.DataFrame(rows, columns=columns)
+        if include_overall:
+            df = pd.concat([df, get_overall_accuracy_per_class(df)], ignore_index=True)
+        return df
 
 class IgnoreChunkAttributes:
     def __init__(self, attributes_group, project):
