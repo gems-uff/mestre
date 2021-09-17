@@ -20,3 +20,14 @@ Contents:
 - Number of conflicting chunks per merge
 - Number of developer decision types per merge
 - Number of developer decision types per conflicting file
+
+
+## [queriesGHTorrent.sql](queriesGHTorrent.sql)
+
+Queries run on GHTorrent instance at Google BigQuery instance.
+
+
+Contents:
+
+- Number of commits for a project
+- Number of stars for a project
