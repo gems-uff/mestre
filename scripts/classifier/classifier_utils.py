@@ -30,11 +30,13 @@ class ProjectResults:
         return pd.DataFrame(self.confusion_matrix, index=self.target_names, columns=self.target_names)
 
 class ProjectsResults:
-    def __init__(self, algorithm, projects, non_feature_columns, projects_data_path=configs.PROJECTS_DATA, drop_na=True, replace_na=False, ablation=False, ablation_group='', ablation_mode='remove'):
+    def __init__(self, algorithm, projects, non_feature_columns, projects_data_path=configs.PROJECTS_DATA,
+        drop_na=True, replace_na=False, ablation=False, ablation_group='', ablation_mode='remove', training=True):
         self.results = {}
         self.algorithm = algorithm
         self.evaluated_projects=0
-        self.evaluate_projects(projects, non_feature_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group, ablation_mode)
+        self.evaluate_projects(projects, non_feature_columns, algorithm, projects_data_path, drop_na, replace_na, ablation,
+             ablation_group, ablation_mode, training)
     
     def add_project_result(self, project_result):
         self.results[project_result.project_name] = project_result
@@ -49,9 +51,11 @@ class ProjectsResults:
             df = pd.concat([df, get_overall_accuracy(df)], ignore_index=True)
         return df
 
-    def evaluate_projects(self, projects, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group, ablation_mode):
+    def evaluate_projects(self, projects, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation,
+         ablation_group, ablation_mode, training):
         for project in projects:
-            project_results = evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na, replace_na, ablation, ablation_group, ablation_mode)
+            project_results = evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na, replace_na,
+             ablation, ablation_group, ablation_mode, training)
             if not np.isnan(project_results.results.iloc[0]['accuracy']):
                 self.evaluated_projects+=1
             self.add_project_result(project_results)
@@ -70,9 +74,34 @@ class ProjectsResults:
             if score_metric in project_df:
                 project_df_classes_recall = project_df[score_metric]
                 if target_name in project_df_classes_recall:
-                    row.append(project_df_classes_recall[target_name])
+                    metric_value = project_df_classes_recall[target_name]
+                    if metric_value != 0:
+                        row.append(project_df_classes_recall[target_name])
+                    else:
+                        row.append(np.nan)
                 else:
                     row.append(np.nan)
+                rows.append(row)
+        df = pd.DataFrame(rows, columns=columns)
+        if include_overall:
+            df = pd.concat([df, get_overall_accuracy_per_class(df)], ignore_index=True)
+        return df
+    
+    def get_accuracy_per_class_df(self, target_names, include_overall=False):
+        rows = []
+        columns = ['project']
+        columns.extend(target_names)
+        for project_name, project in self.results.items():
+            row = []
+            row.append(project_name)
+            project_df = project.get_scores_df()
+            if 'recall' in project_df:
+                project_df_classes_recall = project_df['recall']
+                for class_name in target_names:
+                    if class_name in project_df_classes_recall:
+                        row.append(project_df_classes_recall[class_name])
+                    else:
+                        row.append(np.nan)
                 rows.append(row)
         df = pd.DataFrame(rows, columns=columns)
         if include_overall:
@@ -123,6 +152,15 @@ class IgnoreChunkAttributes:
 
 def get_overall_accuracy_per_class(df):
     values = ['Overall']
+    
+    # we first replace 0's with NaN, since we dont want to include 
+    #   instances where there are not occurrences of the class we want to measure
+    # e.g.: a project with 100 instances, where all of them are class X.
+    #   if our classifier predicted all classes to be Y, then
+    #   the precision/recall/f-measure for class Y will be 0.
+    #   However, we dont want to count it as 0 when taking the average among the classifiers
+    #       because it is not actually 0, but NaN (division by 0)
+    df = df.replace(0, np.NaN)
     for column in df.columns:
         if column != 'project':
             values.append(df[column].mean(skipna=True))
@@ -167,16 +205,22 @@ def get_project_class_distribution(project_dataset, project_name, normalized=Tru
     df_columns.extend(developer_decisions)
     return pd.DataFrame([row], columns=df_columns)
 
-def get_projects_class_distribution(projects, normalized=True, drop_na=True, include_overall=False):
+def get_projects_class_distribution(projects, normalized=True, drop_na=True, include_overall=False, training=True):
     results = []
     for project in projects:
         project_name = project.replace("/", "__")
-        project_dataset_path = f"../../data/projects/{project_name}-training.csv"
+        if training:
+            project_dataset_path = f"../../data/projects/{project_name}-training.csv"
+        else:
+            project_dataset_path = f"../../data/projects/{project_name}-test.csv"
         df = pd.read_csv(project_dataset_path)
         results.append(get_project_class_distribution(df, project_name, normalized, drop_na))
     if include_overall:
             project_name = 'Overall'
-            dataset_path = f"../../data/dataset-training.csv"
+            if training:
+                dataset_path = f"../../data/dataset-training.csv"
+            else:
+                dataset_path = f"../../data/dataset-test.csv"
             df = pd.read_csv(dataset_path)
             results.append(get_project_class_distribution(df, project_name, normalized, drop_na))
     results = pd.concat(results, ignore_index=True)
@@ -198,7 +242,7 @@ def get_overall_accuracy(results):
     result = pd.DataFrame(rows, columns=results.columns)
     return result
 
-def predict(algorithm, X, y):
+def cross_validate(algorithm, X, y):
     y_pred = cross_val_predict(algorithm, X, y, cv=10)
     return y_pred
 
@@ -362,16 +406,23 @@ def replace_na_values(df):
 # Calculate metrics for each label (class), and find their average weighted by support (the number of true instances for each label).
 # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_recall_fscore_support.html#sklearn.metrics.precision_recall_fscore_support
 # macro metrics: Calculate metrics for each label, and find their unweighted mean. This does not take label imbalance into account.
-def evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na=True, replace_na=False, ablation=False, ablation_group='', ablation_mode='remove'):
+def evaluate_project(project, non_features_columns, algorithm, projects_data_path, drop_na=True, replace_na=False, ablation=False,
+     ablation_group='', ablation_mode='remove', training=True):
     results = []
     class_names = []
     project = project.replace("/", "__")
     project_dataset = f"{projects_data_path}/{project}-training.csv"
+    if not training:
+        project_dataset_test = f"{projects_data_path}/{project}-test.csv"
+        df_test = pd.read_csv(project_dataset_test)
+
     df = pd.read_csv(project_dataset)
     if replace_na:
         df = replace_na_values(df)
     if drop_na:
         df_clean = df.dropna()
+        if not training:
+            df_test_clean = df_test.dropna()
     else:
         df_clean = df
     if ablation:
@@ -385,21 +436,31 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
         # print(ignored_attributes.ignored_columns)
     # print(len(df_clean.columns))
     majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
+    if not training:
+        majority_class = get_majority_class_percentage(df_test_clean, 'developerdecision')
     scores = {}
     scores_text= ''
     conf_matrix = []
-    target_names = sorted(df['developerdecision'].unique())
     if len(df_clean) >= 10:
-        y = df_clean["developerdecision"].copy()
+        y_train = df_clean["developerdecision"].copy()
         df_clean = df_clean.drop(columns=['developerdecision'])
         df_clean = df_clean.drop(columns=non_features_columns)
         features = list(df_clean.columns)
-        X = df_clean[features]
-#         print(f"project: {project} \t len df: {len(df)} \t len df clean: {len(df_clean)} \t len x: {len(X)}  \t len y: {len(y)}")
-        # scores = cross_val_score(model, X, y, cv=10)
-        # accuracy = scores.mean()
-        # std_dev = scores.std()
-        y_pred = predict(algorithm, X, y)
+        X_train = df_clean[features]
+
+        if not training:
+            y = df_test_clean['developerdecision'].copy()
+            df_test_clean = df_test_clean.drop(columns=['developerdecision'])
+            df_test_clean = df_test_clean.drop(columns=non_features_columns)
+            X_test = df_test_clean[features]
+
+            algorithm.fit(X_train, y_train)
+            y_pred = algorithm.predict(X_test)
+        
+        else:
+            y_pred = cross_validate(algorithm, X_train, y_train)
+            y = y_train
+        
         scores = get_prediction_scores(y, y_pred)
         scores_text = get_prediction_scores(y, y_pred, False)
         class_names = get_all_involved_classes(y,y_pred)
@@ -414,7 +475,8 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
         results.append([project, len(df), len(df_clean), precision, recall, f1_score, accuracy, majority_class, normalized_improvement])
     else:
         results.append([project, len(df), len(df_clean), np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN])
-    results = pd.DataFrame(results, columns=['project', 'observations', 'observations (wt NaN)', 'precision', 'recall', 'f1-score', 'accuracy', 'baseline (majority)', 'improvement'])
+    results = pd.DataFrame(results, columns=['project', 'observations', 'observations (wt NaN)', 'precision', 'recall', 'f1-score',
+         'accuracy', 'baseline (majority)', 'improvement'])
     
     results = results.round(3)
     return ProjectResults(project, results, scores, scores_text, conf_matrix, class_names)
@@ -777,7 +839,6 @@ def projects_feature_selection(projects, non_features_columns, algorithm, featur
                 selection_algorithm = SelectFromModel(algorithm, prefit=True)
                 selection_algorithm.transform(X)
                 selected_features = get_list_selected_features(selection_algorithm, X)
-                X_selected = X[selected_features]
             elif feature_selection_strategy == 'recursive':
                 min_features_to_select = 1
                 selection_algorithm = RFECV(estimator=algorithm, step=1, cv=5,
@@ -786,16 +847,16 @@ def projects_feature_selection(projects, non_features_columns, algorithm, featur
                 selection_algorithm.fit(X, y)
                 selection_algorithm.transform(X)
                 selected_features = get_list_selected_features(selection_algorithm, X)
-                X_selected = X[selected_features]
             elif feature_selection_strategy == 'IGAR':
                 # TODO: implement the IGAR using sklearn interface (to use the fit/transform functions)
                 # uses the n value found in the IGAR tuning notebook
-                n = 65
+                n = 81
                 selected_features, attributes_ranking = IGAR(n, X, y)
-                X_selected = X[selected_features]
             else:
                 print('Invalid feature selection strategy')
                 return None
+
+            X_selected = get_selected_data(X, selected_features)
             original_features = X.shape[1]
             nr_selected_features = X_selected.shape[1]
             scores = cross_val_score(algorithm, X_selected, y, cv=10)
@@ -860,10 +921,10 @@ def get_information_gain(class_, feature):
     return ig
 
 '''
-    Applies MLDP discretization to numeric values.
-    MLDP Implementation: https://github.com/navicto/Discretization-MDLPC 
+    Applies MDLP discretization to numeric values.
+    MDLP Implementation: https://github.com/navicto/Discretization-MDLPC 
 '''
-def get_mldp_discretization(X, y, ignore_columns=[]):
+def get_mdlp_discretization(X, y):
     X_orig = X.copy()
     X = X.to_numpy()
     y = y.to_numpy()
@@ -879,14 +940,18 @@ def get_mldp_discretization(X, y, ignore_columns=[]):
 '''
     Feature selection method based on the information gain ranking of the attributes. 
     Returns the n attributes with the highest information gain values and their information gain (2 lists)
+    if n is zero we dont select any feature
 '''
 def IGAR(n, X, y):
     features = {}
     selected_features = []
     information_gains = []
-    # it is necessary to discretize numeric values 
-    #  before calculating the information gain
-    X_discretized = get_mldp_discretization(X, y)
+    if n != 0:
+        # it is necessary to discretize numeric values 
+        #  before calculating the information gain
+        X_discretized = get_mdlp_discretization(X, y)
+    else:
+        X_discretized = X
     for column in X_discretized.columns:
         feature = X_discretized[column]
         information_gain = get_information_gain(list(y), list(feature))
@@ -896,10 +961,25 @@ def IGAR(n, X, y):
     for name, ig in sorted(features.items(), key=lambda x: x[1], reverse=True):
         selected_features.append(name)
         information_gains.append(ig)
+    if n == 0:
+        return selected_features, information_gains
     if len(selected_features) >= n:
         return selected_features[:n], information_gains[:n]
     else:
         return [],[]
+
+'''
+    returns only the selected data based on the original dataset and a list of selected features
+'''
+def get_selected_data(original_X, selected_features):
+    new_selected_attributes = []
+
+    # we need to make sure that the order of the columns is not changed
+    # https://github.com/scikit-learn/scikit-learn/issues/5394
+    for column in original_X.columns:
+        if column in selected_features:
+            new_selected_attributes.append(column)
+    return original_X[new_selected_attributes]
 
 '''
 Collect accuracy for each n
@@ -914,7 +994,6 @@ def IGAR_tuning(prediction_algorithm, projects, non_features_columns, min_n, max
     data = []
     for n in range(min_n, max_n+1):
         for project in projects:
-            row = []
             project = project.replace("/", "__")
             project_dataset = f"{configs.PROJECTS_DATA}/{project}-training.csv"
             df = pd.read_csv(project_dataset)
@@ -932,7 +1011,7 @@ def IGAR_tuning(prediction_algorithm, projects, non_features_columns, min_n, max
                 default_accuracy = scores.mean()
 
                 selected_attributes, attributes_ranking = IGAR(n, X, y)
-                X_selected = X[selected_attributes]
+                X_selected = get_selected_data(X, selected_attributes)
 
                 scores = cross_val_score(prediction_algorithm, X_selected, y, cv=5)
                 new_accuracy = scores.mean()
