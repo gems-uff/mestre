@@ -83,8 +83,8 @@ Reproduce the scripts in the following order:
     <tr>
       <td>select_projects.py</td>
       <td>./data/LABELLED_DATASET, ./data/number_conflicting_chunks.csv, ./data/dataset.csv</td>
-      <td>./data/selected_dataset.csv, ./data/SELECTED_LABELLED_DATASET.csv</td>
-      <td>Extracts only the conflicting chunks that satisfy the criteria contained in the script (currently chunks from projects that have at least 1,000 conflicting chunks).</td>
+      <td>./data/selected_dataset.csv, ./data/SELECTED_LABELLED_DATASET.csv, ./data/projects_intersection.csv</td>
+      <td>Extracts only the conflicting chunks that satisfy the criteria contained in the script (currently chunks from projects that have at least 1,000 conflicting chunks, and that are not implicit forks from other selected projects).</td>
     </tr>
     <tr>
       <td>github_api_data_preprocess.py</td>
