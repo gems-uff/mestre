@@ -172,7 +172,7 @@ Output data is exported to a csv file (../data/dataset.csv).
 
 Takes as input the files: (../data/dataset.csv), (../data/number_conflicting_chunks.csv), and (../data/LABELLED_DATASET.csv).
 
-Select chunks from projects based on a given criteria (currently number of conflicting chunks >= 1000).
+Select chunks from projects based on a given criteria (currently number of conflicting chunks >= 1000 and projects that are not implicit forks of other selected projects).
 
 Output data is exported to a csv file (../data/selected_dataset.csv).
 
