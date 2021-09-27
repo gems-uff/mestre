@@ -30,7 +30,8 @@ if __name__ == "__main__":
             for commit in all_commits.split():
                 project_commits.add(commit)
             projects_commits[project] = project_commits
-    
+    data = []
+    columns = ['project1', 'project2', 'intersection_perc']
     for project, commits in projects_commits.items():
         for project2, commits2 in projects_commits.items():
             if project != project2:
@@ -40,10 +41,11 @@ if __name__ == "__main__":
                 if project_project2 not in projects_intersection:
                     intersection_perc = len(intersection) / len(commits)
                     projects_intersection[project_project2] = intersection_perc
+                    data.append([project, project2, intersection_perc])
                         
                 if project2_project not in projects_intersection:
                     intersection_perc = len(intersection) / len(commits2)
                     projects_intersection[project2_project] = intersection_perc
-    
-    pd.DataFrame.from_dict(projects_intersection, orient = 'index').to_csv('../data/intersection.csv')
+                    data.append([project2, project, intersection_perc])
+    pd.DataFrame(data, columns=columns).to_csv('../data/projects_intersection.csv', index=False)
     print(len(projects))
