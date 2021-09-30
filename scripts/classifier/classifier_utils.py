@@ -850,7 +850,7 @@ def projects_feature_selection(projects, non_features_columns, algorithm, featur
             elif feature_selection_strategy == 'IGAR':
                 # TODO: implement the IGAR using sklearn interface (to use the fit/transform functions)
                 # uses the n value found in the IGAR tuning notebook
-                n = 81
+                n = 82
                 selected_features, attributes_ranking = IGAR(n, X, y)
             else:
                 print('Invalid feature selection strategy')
