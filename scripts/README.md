@@ -1,4 +1,6 @@
-![Data pipeline through scripts](scripts_graph.png?raw=true "Data pipeline through scripts")
+# Scripts
+
+![Data pipeline through scripts](scripts_graph.svg "Data pipeline through scripts")
 
 ## download_dataset_files.py
 
