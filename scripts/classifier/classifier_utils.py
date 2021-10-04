@@ -11,6 +11,7 @@ from sklearn.model_selection import cross_val_predict
 from matplotlib import pyplot as plt
 import configs
 from MDLP import MDLP_Discretizer
+from IPython import display
 
 class ProjectResults:
     def __init__(self, project_name, results, scores, scores_text, confusion_matrix, target_names):
@@ -931,11 +932,16 @@ def get_mdlp_discretization(X, y):
     
     numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
     numeric_features_names = list(X_orig.select_dtypes(include=numerics)) # columns names
+    not_numeric_features = []
+    for numeric_feature in numeric_features_names:
+        if is_authorship_feature(numeric_feature) or is_content_feature(numeric_feature):
+            not_numeric_features.append(numeric_feature)
+    numeric_features_names = list(set(numeric_features_names) - set(not_numeric_features))
     numeric_features = [X_orig.columns.get_loc(col) for col in numeric_features_names] # columns indexes
     discretizer = MDLP_Discretizer(features=numeric_features)
     discretizer.fit(X, y)
     X_discretized = discretizer.transform(X)
-    return pd.DataFrame(X_discretized, columns=numeric_features_names)
+    return pd.DataFrame(X_discretized, columns=X_orig.columns)
 
 '''
     Feature selection method based on the information gain ranking of the attributes. 
@@ -1128,3 +1134,370 @@ def get_attribute_selection_ranking(attributes_stats, method):
     results.append(['content_constructor', times_selected_average, information_gain_average, ranking_average])
    
     return pd.DataFrame(results, columns=['attribute', 'count_selected', 'average_information_gain', 'average_ranking'])
+
+'''
+    Returns a list containing the names of all attributes
+        except for author attributes
+'''
+def get_all_attributes_names(non_features_columns):
+    project_dataset = f"{configs.DATA_PATH}/dataset-training.csv"
+    df = pd.read_csv(project_dataset)
+    df = df.drop(columns=['developerdecision'])
+    df = df.drop(columns=non_features_columns)
+    return list(df.columns)
+
+
+'''
+    Given a list of projects, returns the overall rank of attributes according to the information gain measure
+'''
+def get_attributes_importance(projects, non_features_columns):
+    data = {}
+    all_attributes = get_all_attributes_names(non_features_columns)
+
+    for attribute in all_attributes:
+        data[attribute] = {}
+        data[attribute]['information_gain'] = 0
+        data[attribute]['rank'] = 0
+
+    n_projects = 0
+    for project in projects:
+        project = project.replace("/", "__")
+        project_dataset = f"{configs.PROJECTS_DATA}/{project}-training.csv"
+        df = pd.read_csv(project_dataset)
+        df_clean = df.dropna()
+        
+        if len(df_clean) >= 10:
+            y = df_clean["developerdecision"].copy()
+            df_clean = df_clean.drop(columns=['developerdecision'])
+            df_clean = df_clean.drop(columns=non_features_columns)
+            features = list(df_clean.columns)
+            X = df_clean[features]
+            features_ig = {}
+            features_rank = {}
+            
+            # discretize numeric values before calculating information gain
+            X = get_mdlp_discretization(X, y)
+            
+            for column in X.columns:
+                if column in all_attributes:
+                    feature = X[column]
+                    information_gain = get_information_gain(list(y), list(feature))
+                    features_ig[column] = information_gain
+
+            # order the attributes according to descending information gain
+            rank = 1
+            for name, ig in sorted(features_ig.items(), key=lambda x: x[1], reverse=True):
+                features_rank[name] = rank
+                rank+=1
+            for attribute in all_attributes:
+                data[attribute]['information_gain'] += features_ig[attribute]
+                data[attribute]['rank'] += features_rank[attribute]
+            n_projects+=1
+    results = []
+    for attribute_name, attribute_data in data.items():
+        data[attribute_name]['information_gain']/=n_projects
+        data[attribute_name]['rank']/=n_projects
+        results.append([attribute_name, attribute_data['information_gain'], attribute_data['rank']])
+    results = pd.DataFrame(results, columns=['attribute', 'average_information_gain', 'average_rank'])
+    return results
+
+'''
+    Given a list of projects, returns the importance of the developers attribute according to the average information gain
+        method: 
+            - for each project, retrieve the developer with the highest information gain
+            - calculate the average among all projects using the highest information gain for each one
+'''
+def get_developers_attribute_importance(projects, non_features_columns):
+    top_ranked_authors = []
+    top_ranked_authors_columns = ['project', 'author', 'information_gain', 'rank']
+    authorship_information_gain = 0
+    authorship_rank = 0
+
+    n_projects = 0
+    for project in projects:
+        project = project.replace("/", "__")
+        project_dataset = f"{configs.PROJECTS_DATA}/{project}-training.csv"
+        df = pd.read_csv(project_dataset)
+        df_clean = df.dropna()
+        
+        if len(df_clean) >= 10:
+            y = df_clean["developerdecision"].copy()
+            df_clean = df_clean.drop(columns=['developerdecision'])
+            df_clean = df_clean.drop(columns=non_features_columns)
+            features = list(df_clean.columns)
+            X = df_clean[features]
+            features_ig = {}
+            
+            # discretize numeric values before calculating information gain
+            X = get_mdlp_discretization(X, y)
+            
+            for column in X.columns:
+                feature = X[column]
+                information_gain = get_information_gain(list(y), list(feature))
+                features_ig[column] = information_gain
+
+            # order the attributes according to descending information gain
+            top_1_feature_name = ''
+            top_1_feature_ig = 0
+            top_1_feature_rank = 0
+            rank = 1
+            for name, ig in sorted(features_ig.items(), key=lambda x: x[1], reverse=True):
+                if is_authorship_feature(name):
+                    top_1_feature_name = name
+                    top_1_feature_ig = ig
+                    top_1_feature_rank = rank
+                    break
+                rank+=1
+
+            if top_1_feature_name!= '' and top_1_feature_ig != 0 and top_1_feature_rank != 0:
+                authorship_information_gain+=top_1_feature_ig
+                authorship_rank+=top_1_feature_rank
+            top_ranked_authors.append([project, top_1_feature_name, top_1_feature_ig, top_1_feature_rank])
+            n_projects+=1
+    
+    results = []
+    authorship_information_gain/=n_projects
+    authorship_rank/=n_projects
+    top_ranked_authors.append(['Overall', '-', authorship_information_gain, authorship_rank])
+    results = pd.DataFrame(top_ranked_authors, columns=top_ranked_authors_columns)
+    return results
+
+'''
+    Given a list of projects, returns the importance of the language constructs attributes according to the average information gain
+        method: 
+            - for each project, retrieve the language construct with the highest information gain
+            - calculate the average among all projects using the highest information gain for each one
+'''
+def get_constructs_attribute_importance(projects, non_features_columns):
+    top_ranked_constructs = []
+    top_ranked_constructs_columns = ['project', 'construct', 'information_gain', 'rank']
+    constructs_information_gain = 0
+    constructs_rank = 0
+
+    n_projects = 0
+    for project in projects:
+        project = project.replace("/", "__")
+        project_dataset = f"{configs.PROJECTS_DATA}/{project}-training.csv"
+        df = pd.read_csv(project_dataset)
+        df_clean = df.dropna()
+        
+        if len(df_clean) >= 10:
+            y = df_clean["developerdecision"].copy()
+            df_clean = df_clean.drop(columns=['developerdecision'])
+            df_clean = df_clean.drop(columns=non_features_columns)
+            features = list(df_clean.columns)
+            X = df_clean[features]
+            features_ig = {}
+            
+            # discretize numeric values before calculating information gain
+            X = get_mdlp_discretization(X, y)
+            
+            for column in X.columns:
+                feature = X[column]
+                information_gain = get_information_gain(list(y), list(feature))
+                features_ig[column] = information_gain
+
+            # order the attributes according to descending information gain
+            top_1_feature_name = ''
+            top_1_feature_ig = 0
+            top_1_feature_rank = 0
+            rank = 1
+            for name, ig in sorted(features_ig.items(), key=lambda x: x[1], reverse=True):
+                if is_content_feature(name):
+                    top_1_feature_name = name
+                    top_1_feature_ig = ig
+                    top_1_feature_rank = rank
+                    break
+                rank+=1
+
+            if top_1_feature_name!= '' and top_1_feature_ig != 0 and top_1_feature_rank != 0:
+                constructs_information_gain+=top_1_feature_ig
+                constructs_rank+=top_1_feature_rank
+            top_ranked_constructs.append([project, top_1_feature_name, top_1_feature_ig, top_1_feature_rank])
+            n_projects+=1
+    
+    results = []
+    constructs_information_gain/=n_projects
+    constructs_rank/=n_projects
+    top_ranked_constructs.append(['Overall', '-', constructs_information_gain, constructs_rank])
+    results = pd.DataFrame(top_ranked_constructs, columns=top_ranked_constructs_columns)
+    return results
+
+'''
+    Given a list of projects, returns the importance of each language construct attribute according to the average information gain
+'''
+def get_constructs_information_gain(projects, non_features_columns):
+    constructs = {}
+    all_constructors = ['Class declaration', 'Return statement', 'Array access', 'Cast expression', 
+                            'Attribute', 'Array initializer', 'Do statement', 'Case statement', 'Other', 'Method signature', 'Break statement',
+                            'TypeDeclarationStatement', 'Comment', 'Method invocation', 'Package declaration', 'While statement', 
+                            'Interface signature', 'Variable', 'Enum value', 'Class signature', 'Annotation', 'Method interface',
+                            'Interface declaration', 'Synchronized statement', 'Throw statement', 'Switch statement', 'Catch clause',
+                            'Try statement', 'Annotation declaration', 'For statement', 'Enum declaration', 'Enum signature', 'Assert statement',
+                            'Static initializer', 'If statement', 'Method declaration', 'Continue statement', 'Import', 'Blank']
+
+    for construct in all_constructors:
+        constructs[construct] = {}
+        constructs[construct]['information_gain'] = 0
+        constructs[construct]['rank'] = 0
+
+    n_projects = 0
+    for project in projects:
+        project = project.replace("/", "__")
+        project_dataset = f"{configs.PROJECTS_DATA}/{project}-training.csv"
+        df = pd.read_csv(project_dataset)
+        df_clean = df.dropna()
+        
+        if len(df_clean) >= 10:
+            y = df_clean["developerdecision"].copy()
+            df_clean = df_clean.drop(columns=['developerdecision'])
+            df_clean = df_clean.drop(columns=non_features_columns)
+            features = list(df_clean.columns)
+            X = df_clean[features]
+            features_ig = {}
+            
+            # discretize numeric values before calculating information gain
+            X = get_mdlp_discretization(X, y)
+            
+            for column in X.columns:
+                feature = X[column]
+                information_gain = get_information_gain(list(y), list(feature))
+                features_ig[column] = information_gain
+
+            # order the attributes according to descending information gain
+            rank = 1
+            for name, ig in sorted(features_ig.items(), key=lambda x: x[1], reverse=True):
+                if is_content_feature(name):
+                    constructs[name]['information_gain']+=ig
+                    constructs[name]['rank']+=rank
+                rank+=1
+            n_projects+=1
+    results = []
+    overall_ig = 0
+    overall_rank = 0
+    for construct in all_constructors:
+        constructs[construct]['information_gain']/=n_projects
+        constructs[construct]['rank']/= n_projects
+        overall_ig+=constructs[construct]['information_gain']
+        overall_rank+=constructs[construct]['rank']
+        results.append([construct, constructs[construct]['information_gain'], constructs[construct]['rank']])
+    
+    overall_ig/=n_projects
+    overall_rank/=n_projects
+    results.append(['Overall', overall_ig, overall_rank])
+    results = pd.DataFrame(results, columns=['construct', 'avg_information_gain', 'avg_rank'])
+    return results
+
+def get_df_count(dataframe, precedent, consequent):
+    df_count = pd.crosstab(dataframe[precedent], dataframe[consequent])
+    df_count.loc[:,'Total'] = df_count.sum(axis=1)
+    return df_count
+
+def get_df_confidence(df_count, columns):
+    data = []
+    indexes = []
+    for index, row in df_count.iterrows():
+        new_row_values = []
+        indexes.append(index)
+        for column in columns:
+            confidence_value = row[column]/row["Total"]
+            new_row_values.append(confidence_value)
+        data.append(new_row_values)
+    df_confidence = pd.DataFrame(data, columns=columns, index=indexes)
+    return df_confidence
+
+def get_support(dataframe, consequent):
+    consequent_values = list(dataframe[consequent].unique())
+    support = {}
+    for consequent_value in consequent_values:
+        consequent_support = len(dataframe[dataframe[consequent]==consequent_value])/len(dataframe)
+        support[consequent_value] = consequent_support
+    return support
+
+def get_lift(df_count, columns, df_confidence, support):
+    data = []
+    indexes = []
+    for index, row in df_count.iterrows():
+        new_row_values = []
+        indexes.append(index)
+        for column in columns:
+            confidence_value = df_confidence.loc[index][column]
+            support_value = support[column]
+            if confidence_value > 0:
+                lift_value = confidence_value/support_value
+            else:
+                lift_value = 1
+            new_row_values.append(lift_value)
+        data.append(new_row_values)
+
+    lift = pd.DataFrame(data, columns=columns, index=indexes)
+    return lift
+
+def lift_analysis(dataframe, precedent, consequent):
+    df_count = get_df_count(dataframe, precedent, consequent)
+    columns = list(df_count.columns)
+    columns.remove("Total")
+    df_confidence = get_df_confidence(df_count, columns)
+    support = get_support(dataframe, consequent)
+    lift = get_lift(df_count, columns, df_confidence, support)
+    
+    return lift, df_confidence, support, df_count
+
+def get_rules_of_interest(threshold, lift, attribute, df_confidence, df_count):
+    rules_increase = {}
+    rules_decrease = {}
+    for index, row in lift.iterrows():
+        for column in lift.columns:
+            if not pd.isnull(row[column]):
+                rule = f'{attribute}={index} => {column}'
+                confidence = df_confidence.loc[index][column]
+                count = df_count.loc[index][column]
+                if row[column] >= 1 + threshold:
+                    rules_increase[row[column]] = {'rule': rule, 'confidence': confidence, 'occurrences': count}
+                if row[column] <= 1 - threshold:
+                    rules_decrease[row[column]] = {'rule': rule, 'confidence': confidence, 'occurrences': count}
+    
+    data = []
+    for key in sorted(rules_increase, reverse=True):
+        data.append([rules_increase[key]['rule'], key, rules_increase[key]['confidence'], rules_increase[key]['occurrences']])
+    df_increase = pd.DataFrame(data, columns=['Rule', "Lift", "Confidence", "Occurrences"])
+
+    data = []
+    for key in sorted(rules_decrease):
+        data.append([rules_decrease[key]['rule'], key, rules_decrease[key]['confidence'], rules_decrease[key]['occurrences']])
+    df_decrease = pd.DataFrame(data, columns=['Rule', "Lift", "Confidence", "Occurrences"])
+
+    return df_increase, df_decrease
+
+def get_discretized_selected_df(projects):
+    dataset_path = f'{configs.DATA_PATH}/dataset-training_log2.csv'
+    df = pd.read_csv(dataset_path)
+    df_clean = df.dropna()
+    used_project = []
+    # filter only projects that were used in the experiment
+    for project in projects:
+        df_project = df_clean[df_clean['project'] == project]
+        if len(df_project) >= 10:
+            used_project.append(project)
+
+    df_clean = df_clean[df_clean['project'].isin(used_project)]
+    return df_clean
+
+def process_association_rules(attributes, projects, target_class_name, threshold, min_occurences):
+    discretized_df = get_discretized_selected_df(projects)
+    all_df_increase = None
+    all_df_decrease = None
+    first = True
+    for attribute in attributes:
+        lift, df_confidence, support, df_count = lift_analysis(discretized_df, attribute, target_class_name)
+        df_increase, df_decrease = get_rules_of_interest(threshold, lift, attribute, df_confidence, df_count)
+        if first:
+            all_df_increase = df_increase
+            all_df_decrease = df_decrease
+            first = False
+        else:
+            all_df_increase = pd.concat([all_df_increase, df_increase])
+            all_df_decrease = pd.concat([all_df_decrease, df_decrease])
+    df_increase = all_df_increase[all_df_increase['Occurrences'] > min_occurences].sort_values(by=['Lift'], ascending=False)
+    df_decrease = all_df_decrease[all_df_decrease['Occurrences'] > min_occurences].sort_values(by=['Lift'])
+    return df_increase, df_decrease
