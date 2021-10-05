@@ -109,7 +109,7 @@ class ProjectsResults:
             df = pd.concat([df, get_overall_accuracy_per_class(df)], ignore_index=True)
         return df
 
-class IgnoreChunkAttributes:
+class IgnoreAttributes:
     def __init__(self, attributes_group, project):
         self.ignored_columns = []
         self.get_ignored_attributes(attributes_group, project)
@@ -122,6 +122,17 @@ class IgnoreChunkAttributes:
              'chunk_right_abs_size', 'chunk_right_rel_size', 'chunkPosition'])
         if attributes_group == 'position' or attributes_group == 'all':
             self.ignored_columns.extend(['chunkPosition'])
+
+        if attributes_group == 'merge':
+            self.ignored_columns.extend(['left_lines_added', 'left_lines_removed', 'right_lines_added', 'right_lines_removed', 'conclusion_delay'])
+            self.ignored_columns.extend(['keyword_fix', 'keyword_bug', 'keyword_feature', 'keyword_improve', 'keyword_document', 'keyword_refactor'])
+            self.ignored_columns.extend(['keyword_update', 'keyword_add', 'keyword_remove', 'keyword_use', 'keyword_delete', 'keyword_change'])
+            self.ignored_columns.extend(['Branching time', 'Merge isolation time', 'Devs 1', 'Devs 2', 'Different devs', 'Same devs', 'Devs intersection'])
+            self.ignored_columns.extend(['Commits 1', 'Commits 2', 'Changed files 1', 'Changed files 2', 'Changed files intersection'])
+            self.ignored_columns.extend(['has_branch_merge_message_indicator', 'has_multiple_devs_on_each_side'])
+
+        if attributes_group == 'file':
+            self.ignored_columns.extend(['fileCC', 'fileSize'])
 
         if attributes_group == 'authorship' or attributes_group == 'content' or attributes_group == 'all':
             project = project.replace("/", "__")
@@ -428,11 +439,11 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
         df_clean = df
     if ablation:
         if ablation_mode == 'add':
-            chunk_attributes = IgnoreChunkAttributes('all', project).ignored_columns
-            include_attributes = IgnoreChunkAttributes(ablation_group, project).ignored_columns
+            chunk_attributes = IgnoreAttributes('all', project).ignored_columns
+            include_attributes = IgnoreAttributes(ablation_group, project).ignored_columns
             ignored_attributes = list(set(chunk_attributes) - set(include_attributes))
         else:
-            ignored_attributes = IgnoreChunkAttributes(ablation_group, project).ignored_columns
+            ignored_attributes = IgnoreAttributes(ablation_group, project).ignored_columns
         df_clean = df_clean.drop(columns=ignored_attributes)
         # print(ignored_attributes.ignored_columns)
     # print(len(df_clean.columns))
