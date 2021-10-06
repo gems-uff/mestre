@@ -1512,3 +1512,44 @@ def process_association_rules(attributes, projects, target_class_name, threshold
     df_increase = all_df_increase[all_df_increase['Occurrences'] > min_occurences].sort_values(by=['Lift'], ascending=False)
     df_decrease = all_df_decrease[all_df_decrease['Occurrences'] > min_occurences].sort_values(by=['Lift'])
     return df_increase, df_decrease
+
+'''
+    Given a project, returns the rank of attributes according to the information gain measure
+'''
+def get_project_attributes_importance(project, non_features_columns):
+    data = {}
+    features_ig = {}
+    features_rank = {}
+    attributes = []
+    project = project.replace("/", "__")
+    project_dataset = f"{configs.PROJECTS_DATA}/{project}-training.csv"
+    df = pd.read_csv(project_dataset)
+    df_clean = df.dropna()
+    
+    if len(df_clean) >= 10:
+        y = df_clean["developerdecision"].copy()
+        df_clean = df_clean.drop(columns=['developerdecision'])
+        df_clean = df_clean.drop(columns=non_features_columns)
+        features = list(df_clean.columns)
+        X = df_clean[features]
+        
+        # discretize numeric values before calculating information gain
+        X = get_mdlp_discretization(X, y)
+        
+        for column in X.columns:
+            feature = X[column]
+            information_gain = get_information_gain(list(y), list(feature))
+            features_ig[column] = information_gain
+            attributes.append(column)
+
+        # order the attributes according to descending information gain
+        rank = 1
+        for name, ig in sorted(features_ig.items(), key=lambda x: x[1], reverse=True):
+            features_rank[name] = rank
+            rank+=1
+    results = []
+    for attribute in attributes:
+        results.append([attribute, features_ig[attribute], features_rank[attribute]])
+    
+    results = pd.DataFrame(results, columns=['attribute', 'information_gain', 'rank'])
+    return results
