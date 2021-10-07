@@ -5,7 +5,7 @@ from pathlib import Path
 def main():
 
     # the directory of this script
-    path = Path(os.path.dirname(__file__))
+    path = Path(os.path.dirname(__file__)).resolve()
     
     # set ../data/data.zip as the destination path
     destination_path = path.parent.joinpath('data','data.zip')
