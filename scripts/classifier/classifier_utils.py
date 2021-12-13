@@ -742,7 +742,7 @@ def get_validation_curve_all(projects, estimator, param_name, param_range, non_f
     test_scores_mean= np.mean(test_scores_mean, axis=0)
     test_scores_std= np.mean(test_scores_std, axis=0)
 
-    plt.title(f"Accumulated Validation Curve with {type(estimator).__name__}.\n Number of projects: {number_projects}")
+    plt.title(f"Accumulated Validation Curve with {type(estimator).__name__}.\n Parameter: {param_name}    Number of projects: {number_projects}")
     plt.xlabel(param_name)
     plt.ylabel("Score")
     plt.ylim(0.0, 1.1)
