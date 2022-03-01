@@ -1,5 +1,6 @@
 import pandas as pd
 import math
+from math import log2
 from sklearn.model_selection import cross_val_score, GridSearchCV, validation_curve
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -906,31 +907,31 @@ def get_overall_feature_selection(df):
     result = pd.DataFrame(rows, columns=df.columns)
     return result
 
-'''
-    CREDITS TO https://stackoverflow.com/a/64914824
-'''
-def get_information_gain(class_, feature):
-  classes = set(class_)
+def entropy(df, attrib, y_attrib):
+    data = df[[attrib, y_attrib]]
+    classes = data[y_attrib].value_counts()\
+        .reset_index(name='count')\
+        .rename(columns={"index": "class_name"})
+    total = classes['count'].sum()
+    classes['percentage'] = classes['count'] / total
+    classes['entropy'] = classes.apply(lambda row: \
+                             -1 * row['percentage'] * log2(row['percentage']), axis = 1)
+    return classes.sum()['entropy']
 
-  Hc = 0
-  for c in classes:
-    pc = class_.count(c)/len(class_) # probability of the class
-    Hc += - pc * math.log(pc, 2) # accumulate the entropy for this class
+def information_gain(df, attrib, y_attrib):
+    data = df[[attrib, y_attrib]]
+    ent_initial = entropy(data, attrib, y_attrib)
+    data_split = data.groupby([attrib])\
+      .apply(lambda df_x: pd.Series({'percentage': df_x.shape[0] / data.shape[0],
+                                     'entropy': entropy(df_x, attrib, y_attrib)}))
+    data_split['weighted_entropy'] = data_split['percentage'] * data_split['entropy']
+    ent_final = data_split['weighted_entropy'].sum()
+    return ent_initial - ent_final
 
-  feature_values = set(feature)
-  Hc_feature = 0
-  for feat in feature_values:
-    pf = feature.count(feat)/len(feature) # probability of the feature
-    indices = [i for i in range(len(feature)) if feature[i] == feat] # indices where the feature happens
-    clasess_of_feat = [class_[i] for i in indices] # classes assigned to each occurrence of this feature
-    for c in classes:
-        pcf = clasess_of_feat.count(c)/len(clasess_of_feat) # probability of having this class and this feature
-        if pcf != 0:
-            temp_H = - pf * pcf * math.log(pcf, 2)
-            Hc_feature += temp_H
-    # overall entropy (among the classes) - entropy of the feature  
-    ig = Hc - Hc_feature
-    return ig
+def get_information_gain(y_attrib, attrib):
+    dict = {'attrib': attrib, 'y_attrib': y_attrib}
+    df = pd.DataFrame(dict)
+    return information_gain(df, 'attrib', 'y_attrib')
 
 '''
     Applies MDLP discretization to numeric values.
