@@ -52,6 +52,17 @@ def filter_intersection(selected_projects):
     selected_projects = selected_projects - filtered_projects
     return list(selected_projects)
 
+'''
+    Filters out projects that do not have enough chunks with enough data to be used in the study (missing attributes)
+'''
+def filter_projects_missing_data(selected_projects):
+    new_selected_projects = []
+    excluded_projects = ['elastic/elasticsearch', 'eclipse/jetty.project', 'revolsys/com.revolsys.open']
+    for project in selected_projects:
+        if project not in excluded_projects:
+            new_selected_projects.append(project)
+    return new_selected_projects            
+    
 
 def execute_command(command, path):
     try:
@@ -65,6 +76,7 @@ def execute_command(command, path):
 projects = pd.read_csv(f'{configs.DATA_PATH}/number_conflicting_chunks.csv')
 selected_projects = list(projects[projects['chunks'] >= 1000]['project'])
 selected_projects = filter_intersection(selected_projects)
+selected_projects = filter_projects_missing_data(selected_projects)
 chunks = pd.read_csv(f'{configs.LABELLED_DATASET_PATH}')
 selected_chunks = []
 print('Processing labelled dataset....')
