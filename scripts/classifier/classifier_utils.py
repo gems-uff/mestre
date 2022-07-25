@@ -352,7 +352,7 @@ def compare_models_medals(models, models_names, projects, non_features_columns):
 
     results = pd.DataFrame(rows, columns=results_columns)
     total_evaluated_projects = 0
-    
+    all_results = []
     for project in projects:
         model_results_project = {}
         columns = ['model_name', 'accuracy']
@@ -374,7 +374,8 @@ def compare_models_medals(models, models_names, projects, non_features_columns):
         
         model_results_project = pd.DataFrame(rows, columns=columns)
         model_results_project['rank'] = model_results_project['accuracy'].rank(method='min', ascending=False)
-        
+        model_results_project['project'] = project
+        all_results.append(model_results_project)
         # assign medals to the top-3 models
         for index, model_results in model_results_project.iterrows():
             if not np.isnan(model_results['accuracy']):
@@ -406,7 +407,7 @@ def compare_models_medals(models, models_names, projects, non_features_columns):
     results = results.drop(['sum_accuracy'], axis=1)
     results = results.drop(['sum_rank'], axis=1)
 
-    return results
+    return results, all_results
 
 def replace_na_values(df):
     imp_constant = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=-1)
