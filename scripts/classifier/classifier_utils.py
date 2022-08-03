@@ -444,9 +444,22 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
             chunk_attributes = IgnoreAttributes('all', project).ignored_columns
             include_attributes = IgnoreAttributes(ablation_group, project).ignored_columns
             ignored_attributes = list(set(chunk_attributes) - set(include_attributes))
+        elif ablation_mode == 'file_only':
+            chunk_attributes = IgnoreAttributes('all', project).ignored_columns
+            merge_attributes = IgnoreAttributes('merge', project).ignored_columns
+            ignored_attributes = list(set(chunk_attributes).union(set(merge_attributes)))
+        elif ablation_mode == 'merge_only':
+            chunk_attributes = IgnoreAttributes('all', project).ignored_columns
+            file_attributes = IgnoreAttributes('file', project).ignored_columns
+            ignored_attributes = list(set(chunk_attributes).union(set(file_attributes)))
+        elif ablation_mode == 'chunk_only':
+            file_attributes = IgnoreAttributes('file', project).ignored_columns
+            merge_attributes = IgnoreAttributes('merge', project).ignored_columns
+            ignored_attributes = list(set(file_attributes).union(set(merge_attributes)))
         else:
             ignored_attributes = IgnoreAttributes(ablation_group, project).ignored_columns
         df_clean = df_clean.drop(columns=ignored_attributes)
+        # print(df_clean.columns)
         # print(ignored_attributes.ignored_columns)
     # print(len(df_clean.columns))
     majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
@@ -1555,3 +1568,28 @@ def get_project_attributes_importance(project, non_features_columns):
     
     results = pd.DataFrame(results, columns=['attribute', 'information_gain', 'rank'])
     return results
+
+def get_chunk_related_attributes():
+    return ['leftCC', 'rightCC', 'chunkAbsSize', 'chunkRelSize', 'chunk_left_abs_size', 'chunk_left_rel_size',
+             'chunk_right_abs_size', 'chunk_right_rel_size', 'chunkPosition', 'self_conflict_perc', 
+             'Class declaration', 'Return statement', 'Array access', 'Cast expression', 
+                'Attribute', 'Array initializer', 'Do statement', 'Case statement', 'Other', 
+                'Method signature', 'Break statement', 'TypeDeclarationStatement', 'Comment', 
+                'Method invocation', 'Package declaration', 'While statement', 'Interface signature',
+                'Variable', 'Enum value', 'Class signature', 'Annotation', 'Method interface',
+                'Interface declaration', 'Synchronized statement', 'Throw statement', 
+                'Switch statement', 'Catch clause', 'Try statement', 'Annotation declaration', 
+                'For statement', 'Enum declaration', 'Enum signature', 'Assert statement',
+                'Static initializer', 'If statement', 'Method declaration', 'Continue statement', 
+                'Import', 'Blank']
+
+def get_merge_related_attributes():
+    return ['left_lines_added', 'left_lines_removed', 'right_lines_added', 'right_lines_removed', 
+    'conclusion_delay', 'keyword_fix', 'keyword_bug', 'keyword_feature', 'keyword_improve', 'keyword_document',
+    'keyword_refactor', 'keyword_update', 'keyword_add', 'keyword_remove', 'keyword_use', 'keyword_delete', 
+    'keyword_change', 'Branching time', 'Merge isolation time', 'Devs 1', 'Devs 2', 'Different devs', 
+    'Same devs', 'Devs intersection', 'Commits 1', 'Commits 2', 'Changed files 1', 'Changed files 2', 
+    'Changed files intersection', 'has_branch_merge_message_indicator', 'has_multiple_devs_on_each_side']
+
+def get_file_related_attributes():
+    return ['fileCC', 'fileSize']
