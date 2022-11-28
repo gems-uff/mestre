@@ -1166,6 +1166,7 @@ def get_all_attributes_names(non_features_columns):
 def get_attributes_importance(projects, non_features_columns):
     data = {}
     all_attributes = get_all_attributes_names(non_features_columns)
+    all_data = []
 
     for attribute in all_attributes:
         data[attribute] = {}
@@ -1201,10 +1202,12 @@ def get_attributes_importance(projects, non_features_columns):
             rank = 1
             for name, ig in sorted(features_ig.items(), key=lambda x: x[1], reverse=True):
                 features_rank[name] = rank
-                rank+=1
+                # if ig != 0:
+                #     rank+=1
             for attribute in all_attributes:
                 data[attribute]['information_gain'] += features_ig[attribute]
                 data[attribute]['rank'] += features_rank[attribute]
+                all_data.append([project, attribute, features_ig[attribute], features_rank[attribute]])
             n_projects+=1
     results = []
     for attribute_name, attribute_data in data.items():
@@ -1212,6 +1215,7 @@ def get_attributes_importance(projects, non_features_columns):
         data[attribute_name]['rank']/=n_projects
         results.append([attribute_name, attribute_data['information_gain'], attribute_data['rank']])
     results = pd.DataFrame(results, columns=['attribute', 'average_information_gain', 'average_rank'])
+    pd.DataFrame(all_data, columns=['project', 'attribute', 'ig', 'rank_within_project']).to_csv('../../data/results/attributes_importance_all_projects.csv', index=False)
     return results
 
 '''
