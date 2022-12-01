@@ -1,4 +1,4 @@
-# conflict-resolution-mining
+# Mestre Project
 
 ## Dataset
 
