@@ -4,11 +4,11 @@ This project contains the artifacts used in the paper "Towards Accurate Recommen
 
 In this paper, we propose MESTRE, a merge conflict resolution strategy recommender. 
 
-The complementary material to the paper can be found in the "complementary" folder.
+The complementary material to the paper can be found in the ["complementary"](complementary) folder.
 
 The dataset can be obtained through the steps outlined below.
 
-The scripts used to reproduce the study can be found in the "scripts" folder.
+The scripts used to reproduce the study can be found in the ["scripts"](scripts) folder.
 
 ## Dataset
 
@@ -127,3 +127,13 @@ Reproduce the scripts in the following order:
 ### Download dataset:
 
 Execute the script download_dataset_files.py. All data files will be put into the ./data folder.
+
+## Authors
+
+Paulo Elias
+
+Heleno de S. Campos Junior
+
+Eduardo Ogasawara
+
+Leonardo Gresta Paulino Murta
