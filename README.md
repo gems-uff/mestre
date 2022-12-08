@@ -1,5 +1,15 @@
 # Mestre Project
 
+This project contains the artifacts used in the paper "Towards Accurate Recommendations of Merge Conflicts Resolution Strategies", submitted to the IST journal.
+
+In this paper, we propose MESTRE, a merge conflict resolution strategy recommender. 
+
+The complementary material to the paper can be found in the "complementary" folder.
+
+The dataset can be obtained through the steps outlined below.
+
+The scripts used to reproduce the study can be found in the "scripts" folder.
+
 ## Dataset
 
 There are two options for accessing the dataset used in this paper. You can either collect the data by yourself (takes a long time) or directly download the dataset files.
