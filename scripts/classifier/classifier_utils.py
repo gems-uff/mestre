@@ -130,7 +130,7 @@ class IgnoreAttributes:
             self.ignored_columns.extend(['keyword_update', 'keyword_add', 'keyword_remove', 'keyword_use', 'keyword_delete', 'keyword_change'])
             self.ignored_columns.extend(['Branching time', 'Merge isolation time', 'Devs 1', 'Devs 2', 'Different devs', 'Same devs', 'Devs intersection'])
             self.ignored_columns.extend(['Commits 1', 'Commits 2', 'Changed files 1', 'Changed files 2', 'Changed files intersection'])
-            self.ignored_columns.extend(['has_branch_merge_message_indicator', 'has_multiple_devs_on_each_side'])
+            self.ignored_columns.extend(['has_multiple_devs_on_each_side'])
 
         if attributes_group == 'file':
             self.ignored_columns.extend(['fileCC', 'fileSize'])
@@ -1593,7 +1593,7 @@ def get_merge_related_attributes():
     'keyword_refactor', 'keyword_update', 'keyword_add', 'keyword_remove', 'keyword_use', 'keyword_delete', 
     'keyword_change', 'Branching time', 'Merge isolation time', 'Devs 1', 'Devs 2', 'Different devs', 
     'Same devs', 'Devs intersection', 'Commits 1', 'Commits 2', 'Changed files 1', 'Changed files 2', 
-    'Changed files intersection', 'has_branch_merge_message_indicator', 'has_multiple_devs_on_each_side']
+    'Changed files intersection', 'has_multiple_devs_on_each_side']
 
 def get_file_related_attributes():
     return ['fileCC', 'fileSize']

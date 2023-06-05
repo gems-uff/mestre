@@ -20,7 +20,7 @@ def main():
     columns2 = ["leftCC",	"rightCC",	"fileCC",	"chunkAbsSize",	"chunkRelSize",	"chunkPosition", "fileSize", "chunk_left_abs_size",	"chunk_left_rel_size", "chunk_right_abs_size", "chunk_right_rel_size"]
     columns3 = ["Branching time",	"Merge isolation time",	"Devs 1",	"Devs 2",	"Different devs",	"Same devs",	"Devs intersection",	"Commits 1",	"Commits 2",	"Changed files 1",	"Changed files 2", "Changed files intersection"]
     columns4 = ["self_conflict_perc"]
-    columns5 = ["has_branch_merge_message_indicator", "has_multiple_devs_on_each_side"]
+    columns5 = ["has_multiple_devs_on_each_side"]
 
     columns.extend(columns1)
     columns.extend(columns2)
