@@ -130,7 +130,7 @@ class IgnoreAttributes:
             self.ignored_columns.extend(['keyword_update', 'keyword_add', 'keyword_remove', 'keyword_use', 'keyword_delete', 'keyword_change'])
             self.ignored_columns.extend(['Branching time', 'Merge isolation time', 'Devs 1', 'Devs 2', 'Different devs', 'Same devs', 'Devs intersection'])
             self.ignored_columns.extend(['Commits 1', 'Commits 2', 'Changed files 1', 'Changed files 2', 'Changed files intersection'])
-            self.ignored_columns.extend(['has_branch_merge_message_indicator', 'has_multiple_devs_on_each_side'])
+            self.ignored_columns.extend(['has_multiple_devs_on_each_side'])
 
         if attributes_group == 'file':
             self.ignored_columns.extend(['fileCC', 'fileSize'])
@@ -352,7 +352,7 @@ def compare_models_medals(models, models_names, projects, non_features_columns):
 
     results = pd.DataFrame(rows, columns=results_columns)
     total_evaluated_projects = 0
-    
+    all_results = []
     for project in projects:
         model_results_project = {}
         columns = ['model_name', 'accuracy']
@@ -374,7 +374,8 @@ def compare_models_medals(models, models_names, projects, non_features_columns):
         
         model_results_project = pd.DataFrame(rows, columns=columns)
         model_results_project['rank'] = model_results_project['accuracy'].rank(method='min', ascending=False)
-        
+        model_results_project['project'] = project
+        all_results.append(model_results_project)
         # assign medals to the top-3 models
         for index, model_results in model_results_project.iterrows():
             if not np.isnan(model_results['accuracy']):
@@ -406,7 +407,7 @@ def compare_models_medals(models, models_names, projects, non_features_columns):
     results = results.drop(['sum_accuracy'], axis=1)
     results = results.drop(['sum_rank'], axis=1)
 
-    return results
+    return results, all_results
 
 def replace_na_values(df):
     imp_constant = SimpleImputer(missing_values=np.nan, strategy='constant', fill_value=-1)
@@ -443,9 +444,22 @@ def evaluate_project(project, non_features_columns, algorithm, projects_data_pat
             chunk_attributes = IgnoreAttributes('all', project).ignored_columns
             include_attributes = IgnoreAttributes(ablation_group, project).ignored_columns
             ignored_attributes = list(set(chunk_attributes) - set(include_attributes))
+        elif ablation_mode == 'file_only':
+            chunk_attributes = IgnoreAttributes('all', project).ignored_columns
+            merge_attributes = IgnoreAttributes('merge', project).ignored_columns
+            ignored_attributes = list(set(chunk_attributes).union(set(merge_attributes)))
+        elif ablation_mode == 'merge_only':
+            chunk_attributes = IgnoreAttributes('all', project).ignored_columns
+            file_attributes = IgnoreAttributes('file', project).ignored_columns
+            ignored_attributes = list(set(chunk_attributes).union(set(file_attributes)))
+        elif ablation_mode == 'chunk_only':
+            file_attributes = IgnoreAttributes('file', project).ignored_columns
+            merge_attributes = IgnoreAttributes('merge', project).ignored_columns
+            ignored_attributes = list(set(file_attributes).union(set(merge_attributes)))
         else:
             ignored_attributes = IgnoreAttributes(ablation_group, project).ignored_columns
         df_clean = df_clean.drop(columns=ignored_attributes)
+        # print(df_clean.columns)
         # print(ignored_attributes.ignored_columns)
     # print(len(df_clean.columns))
     majority_class = get_majority_class_percentage(df_clean, 'developerdecision')
@@ -863,7 +877,7 @@ def projects_feature_selection(projects, non_features_columns, algorithm, featur
             elif feature_selection_strategy == 'IGAR':
                 # TODO: implement the IGAR using sklearn interface (to use the fit/transform functions)
                 # uses the n value found in the IGAR tuning notebook
-                n = 82
+                n = 84
                 selected_features, attributes_ranking = IGAR(n, X, y)
             else:
                 print('Invalid feature selection strategy')
@@ -1165,6 +1179,7 @@ def get_all_attributes_names(non_features_columns):
 def get_attributes_importance(projects, non_features_columns):
     data = {}
     all_attributes = get_all_attributes_names(non_features_columns)
+    all_data = []
 
     for attribute in all_attributes:
         data[attribute] = {}
@@ -1200,10 +1215,12 @@ def get_attributes_importance(projects, non_features_columns):
             rank = 1
             for name, ig in sorted(features_ig.items(), key=lambda x: x[1], reverse=True):
                 features_rank[name] = rank
-                rank+=1
+                # if ig != 0:
+                #     rank+=1
             for attribute in all_attributes:
                 data[attribute]['information_gain'] += features_ig[attribute]
                 data[attribute]['rank'] += features_rank[attribute]
+                all_data.append([project, attribute, features_ig[attribute], features_rank[attribute]])
             n_projects+=1
     results = []
     for attribute_name, attribute_data in data.items():
@@ -1211,6 +1228,7 @@ def get_attributes_importance(projects, non_features_columns):
         data[attribute_name]['rank']/=n_projects
         results.append([attribute_name, attribute_data['information_gain'], attribute_data['rank']])
     results = pd.DataFrame(results, columns=['attribute', 'average_information_gain', 'average_rank'])
+    pd.DataFrame(all_data, columns=['project', 'attribute', 'ig', 'rank_within_project']).to_csv('../../data/results/attributes_importance_all_projects.csv', index=False)
     return results
 
 '''
@@ -1554,3 +1572,28 @@ def get_project_attributes_importance(project, non_features_columns):
     
     results = pd.DataFrame(results, columns=['attribute', 'information_gain', 'rank'])
     return results
+
+def get_chunk_related_attributes():
+    return ['leftCC', 'rightCC', 'chunkAbsSize', 'chunkRelSize', 'chunk_left_abs_size', 'chunk_left_rel_size',
+             'chunk_right_abs_size', 'chunk_right_rel_size', 'chunkPosition', 'self_conflict_perc', 
+             'Class declaration', 'Return statement', 'Array access', 'Cast expression', 
+                'Attribute', 'Array initializer', 'Do statement', 'Case statement', 'Other', 
+                'Method signature', 'Break statement', 'TypeDeclarationStatement', 'Comment', 
+                'Method invocation', 'Package declaration', 'While statement', 'Interface signature',
+                'Variable', 'Enum value', 'Class signature', 'Annotation', 'Method interface',
+                'Interface declaration', 'Synchronized statement', 'Throw statement', 
+                'Switch statement', 'Catch clause', 'Try statement', 'Annotation declaration', 
+                'For statement', 'Enum declaration', 'Enum signature', 'Assert statement',
+                'Static initializer', 'If statement', 'Method declaration', 'Continue statement', 
+                'Import', 'Blank']
+
+def get_merge_related_attributes():
+    return ['left_lines_added', 'left_lines_removed', 'right_lines_added', 'right_lines_removed', 
+    'conclusion_delay', 'keyword_fix', 'keyword_bug', 'keyword_feature', 'keyword_improve', 'keyword_document',
+    'keyword_refactor', 'keyword_update', 'keyword_add', 'keyword_remove', 'keyword_use', 'keyword_delete', 
+    'keyword_change', 'Branching time', 'Merge isolation time', 'Devs 1', 'Devs 2', 'Different devs', 
+    'Same devs', 'Devs intersection', 'Commits 1', 'Commits 2', 'Changed files 1', 'Changed files 2', 
+    'Changed files intersection', 'has_multiple_devs_on_each_side']
+
+def get_file_related_attributes():
+    return ['fileCC', 'fileSize']

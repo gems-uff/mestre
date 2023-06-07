@@ -50,13 +50,13 @@ def main():
                 if merge_message == '_command_error':
                     chunks_failed.append([chunk_id, "CANNOT_RETRIEVE_COMMIT_MSG"])
                 else:
-                    has_branch_merge_message_indicator = branch_merge_pattern.search(merge_message) != None
+                    # has_branch_merge_message_indicator = branch_merge_pattern.search(merge_message) != None
                     has_multiple_devs_on_each_side = int(devs1) >=2 and int(devs2) >= 2 
-                    data.append([chunk_id, row['project'], row['sha'][:10], devs1, devs2, merge_message[:255], has_branch_merge_message_indicator, has_multiple_devs_on_each_side])
+                    data.append([chunk_id, row['project'], row['sha'][:10], devs1, devs2, merge_message[:255], has_multiple_devs_on_each_side])
         else:
             chunks_failed.append([chunk_id, "REPO_NOT_FOUND"])
     
-    new_df = pd.DataFrame(data, columns=['chunk_id', 'project', 'merge_SHA', 'devs1', 'devs2', 'commit_message', 'has_branch_merge_message_indicator', 'has_multiple_devs_on_each_side'])
+    new_df = pd.DataFrame(data, columns=['chunk_id', 'project', 'merge_SHA', 'devs1', 'devs2', 'commit_message', 'has_multiple_devs_on_each_side'])
     new_df.to_csv(f"{configs.DATA_PATH}/merge_types_data.csv", index=False)
     write_failed_chunks(chunks_failed)
 
