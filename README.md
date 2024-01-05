@@ -1,6 +1,6 @@
 # Mestre Project
 
-This project contains the artifacts used in the paper "Towards Accurate Recommendations of Merge Conflicts Resolution Strategies", submitted to the IST journal.
+This project contains the artifacts used in the paper "Towards Accurate Recommendations of Merge Conflicts Resolution Strategies", [published](https://www.sciencedirect.com/science/article/abs/pii/S0950584923001878) in the IST journal. Pre-print is available [here](Towards accurate recommendations of merge conflicts resolution strategies).
 
 In this paper, we propose MESTRE, a merge conflict resolution strategy recommender. 
 
